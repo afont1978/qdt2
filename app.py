@@ -925,12 +925,9 @@ def build_system_performance_figure(df: pd.DataFrame, palette_name: str, window:
             name="Latency MA(5)",
         ), row=2, col=1,
     )
-    x_end = int(plot_df["step"].iloc[-1])
-    x_start = max(1, x_end - int(window) + 1)
     fig.update_yaxes(title_text="Objective", row=1, col=1)
     fig.update_yaxes(title_text="ms", row=2, col=1)
-    fig.update_xaxes(title_text="Step", row=2, col=1, range=[x_start, max(x_start + 1, x_end)])
-    fig.update_xaxes(range=[x_start, max(x_start + 1, x_end)], row=1, col=1)
+    fig.update_xaxes(title_text="Step", row=2, col=1)
     return apply_plotly_layout(fig, palette_name, 410, show_legend=True)
 
 
@@ -970,12 +967,9 @@ def build_twin_focus_figure(twin_df: pd.DataFrame, palette_name: str, window: in
     live_df = plot_df.tail(int(window)).copy()
     fig.add_trace(go.Scatter(x=live_df["step"], y=live_df["objective_value"], mode="lines+markers", line=dict(color=tokens["primary"], width=2.8), marker=dict(size=6), name="Twin objective"), row=1, col=1)
     fig.add_trace(go.Scatter(x=live_df["step"], y=live_df["exec_ms"], mode="lines+markers", line=dict(color=tokens["secondary"], width=2.2), marker=dict(size=5), name="Twin latency"), row=2, col=1)
-    x_end = int(plot_df["step"].iloc[-1])
-    x_start = max(1, x_end - int(window) + 1)
     fig.update_yaxes(title_text="Objective", row=1, col=1)
     fig.update_yaxes(title_text="ms", row=2, col=1)
-    fig.update_xaxes(title_text="Step", row=2, col=1, range=[x_start, max(x_start + 1, x_end)])
-    fig.update_xaxes(range=[x_start, max(x_start + 1, x_end)], row=1, col=1)
+    fig.update_xaxes(title_text="Step", row=2, col=1)
     return apply_plotly_layout(fig, palette_name, 360, show_legend=False)
 
 
@@ -1101,210 +1095,270 @@ static_df = pd.DataFrame(ss.records)
 static_summary = compute_summary(static_df)
 static_routes = static_df["route"].value_counts() if not static_df.empty else pd.Series(dtype=int)
 st.markdown(hero_panel(static_summary, ss.running, ss.visual_style, ss.accent_palette, static_routes), unsafe_allow_html=True)
-st.markdown(architecture_panel(), unsafe_allow_html=True)
-st.markdown("<div class='section-note'>The live area below updates independently of the rest of the page, so the charts should evolve in place without full-screen blinking.</div>", unsafe_allow_html=True)
 
-status_slot = st.empty()
-progress_slot = st.empty()
-kpi_slot = st.empty()
-notice_slot = st.empty()
+overview_tab, twin_tab, audit_tab, about_tab = st.tabs(["Overview", "Twin drill-down", "Audit inspector", "About"])
 
-st.markdown(panel_intro("Live monitoring", "System performance overview", "A more executive visual layout: one primary performance timeline, one governance column, and one operational layer for fleet status and event review."), unsafe_allow_html=True)
-perf_left, perf_right = st.columns([1.7, 1], gap="large")
-with perf_left:
-    perf_chart_slot = st.empty()
-with perf_right:
-    st.markdown(panel_intro("Routing", "Decision mix", "Current composition of classical, quantum and governed fallback routes."), unsafe_allow_html=True)
-    route_chart_slot = st.empty()
-    st.markdown(panel_intro("Governance", "Fallback reasons", "Highest-frequency causes behind governed fallback decisions."), unsafe_allow_html=True)
-    reason_chart_slot = st.empty()
+with overview_tab:
+    st.markdown(architecture_panel(), unsafe_allow_html=True)
+    st.markdown("<div class='section-note'>Overview is the only continuously refreshed view. The other tabs remain more stable so you recover navigation without reintroducing noticeable blinking.</div>", unsafe_allow_html=True)
 
-ops_left, ops_right = st.columns([1.45, 1], gap="large")
-with ops_left:
-    twin_title_slot = st.empty()
-    twin_chart_slot = st.empty()
-with ops_right:
-    st.markdown(panel_intro("Fleet health", "Operational health map", "Fast comparison of current health scores across all twins in the registry."), unsafe_allow_html=True)
-    health_chart_slot = st.empty()
+    status_slot = st.empty()
+    progress_slot = st.empty()
+    kpi_slot = st.empty()
+    notice_slot = st.empty()
+    charts_slot = st.empty()
+    focus_slot = st.empty()
 
-bottom_left, bottom_right = st.columns([1.1, 1], gap="large")
-with bottom_left:
-    st.markdown(panel_intro("State vector", "Focused twin state", "Current values for the selected twin, including the last applied control decision."), unsafe_allow_html=True)
-    state_table_slot = st.empty()
-with bottom_right:
-    st.markdown(panel_intro("Operations log", "Recent events", "Most recent routing outcomes, latency observations and breach flags in the live run."), unsafe_allow_html=True)
-    events_table_slot = st.empty()
-
-
-def render_live_area() -> None:
-    if ss.running:
-        now = time.time()
-        last = ss.get("last_step_ts", 0.0)
-        if ss.speed_mode == "Real-time":
-            if (now - last) * 1000.0 >= float(ss.interval_ms):
+    def render_live_area() -> None:
+        if ss.running:
+            now = time.time()
+            last = ss.get("last_step_ts", 0.0)
+            if ss.speed_mode == "Real-time":
+                if (now - last) * 1000.0 >= float(ss.interval_ms):
+                    run_some_steps()
+                    ss.last_step_ts = time.time()
+            else:
                 run_some_steps()
                 ss.last_step_ts = time.time()
+
+        df = pd.DataFrame(ss.records)
+        summary = compute_summary(df)
+        trends = metric_trends(df) if not df.empty else None
+        progress = min(float(ss.step_id) / float(max(ss.target_steps, 1)), 1.0) if ss.auto_stop else 0.0
+        route_counts = df["route"].value_counts() if not df.empty else pd.Series(dtype=int)
+        fallback_counts = pd.Series(extract_reasons(df.get("fallback_reasons", pd.Series(dtype=object)))).value_counts() if not df.empty else pd.Series(dtype=int)
+
+        with status_slot.container():
+            left, right = st.columns([3, 1])
+            with left:
+                st.caption(f"Run ID: {ss.correlation_id} · Policy: {ss.policy} · Twins: {ss.twins} · Mode: {ss.speed_mode}")
+            with right:
+                live_state = "LIVE" if ss.running else "STATIC"
+                st.caption(f"{live_state} · refresh {int(ss.ui_refresh_ms)} ms · window {int(ss.live_window)}")
+
+        with progress_slot.container():
+            if ss.auto_stop:
+                st.progress(progress, text=f"Progress: {ss.step_id}/{ss.target_steps} steps")
+            else:
+                st.empty()
+
+        if not df.empty:
+            quantum_sub = f"Recent change: {trends['quantum']['delta']}"
+            fallback_sub = f"Recent change: {trends['fallback']['delta']}"
+            latency_sub = f"Recent change: {trends['latency']['delta']}"
+            confidence_sub = f"Recent change: {trends['confidence']['delta']}"
         else:
-            run_some_steps()
-            ss.last_step_ts = time.time()
+            quantum_sub = fallback_sub = latency_sub = confidence_sub = "Waiting for live data"
 
-    df = pd.DataFrame(ss.records)
-    summary = compute_summary(df)
-    trends = metric_trends(df) if not df.empty else None
-    progress = min(float(ss.step_id) / float(max(ss.target_steps, 1)), 1.0) if ss.auto_stop else 0.0
-    route_counts = df["route"].value_counts() if not df.empty else pd.Series(dtype=int)
-    fallback_counts = pd.Series(extract_reasons(df.get("fallback_reasons", pd.Series(dtype=object)))).value_counts() if not df.empty else pd.Series(dtype=int)
+        steps_css = "trend-live" if ss.running else ("trend-pause" if ss.step_id > 0 else "trend-idle")
+        steps_icon = "◉" if ss.running else ("⏸" if ss.step_id > 0 else "○")
+        steps_label = "Live evolution" if ss.running else ("Paused" if ss.step_id > 0 else "Ready")
+        steps_sub = f"{ss.speed_mode} · refresh {int(ss.ui_refresh_ms)} ms"
 
-    with status_slot.container():
-        left, right = st.columns([3, 1])
-        with left:
-            st.caption(f"Run ID: {ss.correlation_id} · Policy: {ss.policy} · Twins: {ss.twins} · Mode: {ss.speed_mode}")
-        with right:
-            live_state = "LIVE" if ss.running else "STATIC"
-            st.caption(f"{live_state} · refresh {int(ss.ui_refresh_ms)} ms · window {int(ss.live_window)}")
+        with kpi_slot.container():
+            k1, k2, k3, k4, k5 = st.columns(5)
+            with k1:
+                st.markdown(kpi_card("Steps", f"{ss.step_id} / {ss.target_steps}" if ss.auto_stop else str(ss.step_id), steps_icon, steps_label, steps_css, steps_sub), unsafe_allow_html=True)
+            with k2:
+                if not df.empty:
+                    t = trends["quantum"]
+                    st.markdown(kpi_card("Quantum share", f"{summary['quantum_share']:.1%}", t["icon"], t["label"], t["css"], quantum_sub), unsafe_allow_html=True)
+                else:
+                    st.markdown(kpi_card("Quantum share", "0.0%", "●", "Collecting baseline", "trend-flat", quantum_sub), unsafe_allow_html=True)
+            with k3:
+                if not df.empty:
+                    t = trends["fallback"]
+                    st.markdown(kpi_card("Fallback rate", f"{summary['fallback_share']:.1%}", t["icon"], t["label"], t["css"], fallback_sub), unsafe_allow_html=True)
+                else:
+                    st.markdown(kpi_card("Fallback rate", "0.0%", "●", "Collecting baseline", "trend-flat", fallback_sub), unsafe_allow_html=True)
+            with k4:
+                if not df.empty:
+                    t = trends["latency"]
+                    st.markdown(kpi_card("Avg latency", f"{summary['avg_latency']:.0f} ms", t["icon"], t["label"], t["css"], latency_sub), unsafe_allow_html=True)
+                else:
+                    st.markdown(kpi_card("Avg latency", "0 ms", "●", "Collecting baseline", "trend-flat", latency_sub), unsafe_allow_html=True)
+            with k5:
+                if not df.empty:
+                    t = trends["confidence"]
+                    st.markdown(kpi_card("Mean confidence", f"{summary['mean_confidence']:.2f}", t["icon"], t["label"], t["css"], confidence_sub), unsafe_allow_html=True)
+                else:
+                    st.markdown(kpi_card("Mean confidence", "0.00", "●", "Collecting baseline", "trend-flat", confidence_sub), unsafe_allow_html=True)
 
-    with progress_slot.container():
-        if ss.auto_stop:
-            st.progress(progress, text=f"Progress: {ss.step_id}/{ss.target_steps} steps")
-        else:
-            st.empty()
+        with notice_slot.container():
+            if df.empty:
+                st.info("Ready to run. Choose a preset or press Start/Step from the sidebar.")
+            elif summary["fallback_share"] > 0.35:
+                st.warning("Fallback rate is elevated. This is useful for demoing governance, but it may indicate aggressive quantum routing or queue pressure.")
+            elif summary["quantum_share"] > 0.45:
+                st.success("Quantum routing is active across a significant share of steps, which makes this run well suited for showcasing hybrid orchestration.")
+            else:
+                st.info("This run is currently conservative. Switch to a more aggressive preset if you want more visible quantum activity.")
 
-    if not df.empty:
-        quantum_sub = f"Recent change: {trends['quantum']['delta']}"
-        fallback_sub = f"Recent change: {trends['fallback']['delta']}"
-        latency_sub = f"Recent change: {trends['latency']['delta']}"
-        confidence_sub = f"Recent change: {trends['confidence']['delta']}"
+        with charts_slot.container():
+            st.markdown(panel_intro("Live monitoring", "System performance overview", "A more executive visual layout: one primary performance timeline, one governance column, and one operational layer for fleet status and event review."), unsafe_allow_html=True)
+
+            perf_left, perf_right = st.columns([1.7, 1], gap="large")
+            with perf_left:
+                st.plotly_chart(
+                    build_system_performance_figure(df, ss.accent_palette, int(ss.live_window)),
+                    use_container_width=True,
+                    config={"displayModeBar": False, "responsive": True},
+                )
+            with perf_right:
+                st.markdown(panel_intro("Routing", "Decision mix", "Current composition of classical, quantum and governed fallback routes."), unsafe_allow_html=True)
+                st.plotly_chart(
+                    build_donut_figure(route_counts, ss.accent_palette, "Routes"),
+                    use_container_width=True,
+                    config={"displayModeBar": False, "responsive": True},
+                )
+                st.markdown(panel_intro("Governance", "Fallback reasons", "Highest-frequency causes behind governed fallback decisions."), unsafe_allow_html=True)
+                st.plotly_chart(
+                    build_reason_bar_figure(fallback_counts, ss.accent_palette),
+                    use_container_width=True,
+                    config={"displayModeBar": False, "responsive": True},
+                )
+
+            focus_twin = ss.focus_twin if ss.focus_twin in ss.core.registry else next(iter(ss.core.registry.keys()))
+            twin_state = ss.core.registry[focus_twin]
+            twin_df = df[df["twin_id"] == focus_twin].copy() if not df.empty else pd.DataFrame()
+            if not twin_df.empty:
+                twin_df["step"] = range(1, len(twin_df) + 1)
+
+            twin_snapshot = get_twin_snapshot(ss.core)
+            ops_left, ops_right = st.columns([1.45, 1], gap="large")
+            with ops_left:
+                st.markdown(panel_intro("Focused twin", f"Activity timeline · {focus_twin}", "Objective and latency evolution for the selected twin across the live window."), unsafe_allow_html=True)
+                st.plotly_chart(
+                    build_twin_focus_figure(twin_df, ss.accent_palette, int(ss.live_window)),
+                    use_container_width=True,
+                    config={"displayModeBar": False, "responsive": True},
+                )
+            with ops_right:
+                st.markdown(panel_intro("Fleet health", "Operational health map", "Fast comparison of current health scores across all twins in the registry."), unsafe_allow_html=True)
+                st.plotly_chart(
+                    build_health_figure(twin_snapshot, ss.accent_palette),
+                    use_container_width=True,
+                    config={"displayModeBar": False, "responsive": True},
+                )
+
+        with focus_slot.container():
+            twin_state_df = pd.DataFrame(
+                [
+                    {"field": "twin_id", "value": focus_twin},
+                    {"field": "health", "value": round(float(twin_state.health), 4)},
+                    {"field": "x1", "value": round(float(twin_state.x1), 4)},
+                    {"field": "x2", "value": round(float(twin_state.x2), 4)},
+                    {"field": "x3", "value": round(float(twin_state.x3), 4)},
+                    {"field": "last_mode", "value": twin_state.last_action.get("mode", "-")},
+                    {"field": "last_damp", "value": round(float(twin_state.last_action.get("damp", 0.0)), 4)},
+                    {"field": "timestamp", "value": twin_state.ts},
+                ]
+            )
+            recent_events = df[["step_id", "twin_id", "route", "exec_ms", "latency_breach"]].tail(12).copy() if not df.empty else pd.DataFrame(columns=["step_id", "twin_id", "route", "exec_ms", "latency_breach"])
+
+            bottom_left, bottom_right = st.columns([1.1, 1], gap="large")
+            with bottom_left:
+                st.markdown(panel_intro("State vector", "Focused twin state", "Current values for the selected twin, including the last applied control decision."), unsafe_allow_html=True)
+                st.dataframe(twin_state_df, use_container_width=True, hide_index=True, height=300)
+            with bottom_right:
+                st.markdown(panel_intro("Operations log", "Recent events", "Most recent routing outcomes, latency observations and breach flags in the live run."), unsafe_allow_html=True)
+                st.dataframe(recent_events, use_container_width=True, hide_index=True, height=300)
+
+    _fragment = getattr(st, "fragment", None)
+    if _fragment is None:
+        _fragment = getattr(st, "experimental_fragment", None)
+
+    run_every = float(ss.ui_refresh_ms) / 1000.0 if ss.running else None
+
+    if _fragment is not None:
+        @_fragment(run_every=run_every)
+        def live_dashboard_fragment() -> None:
+            render_live_area()
     else:
-        quantum_sub = fallback_sub = latency_sub = confidence_sub = "Waiting for live data"
+        def live_dashboard_fragment() -> None:
+            render_live_area()
 
-    steps_css = "trend-live" if ss.running else ("trend-pause" if ss.step_id > 0 else "trend-idle")
-    steps_icon = "◉" if ss.running else ("⏸" if ss.step_id > 0 else "○")
-    steps_label = "Live evolution" if ss.running else ("Paused" if ss.step_id > 0 else "Ready")
-    steps_sub = f"{ss.speed_mode} · refresh {int(ss.ui_refresh_ms)} ms"
+    live_dashboard_fragment()
 
-    with kpi_slot.container():
-        k1, k2, k3, k4, k5 = st.columns(5)
-        with k1:
-            st.markdown(kpi_card("Steps", f"{ss.step_id} / {ss.target_steps}" if ss.auto_stop else str(ss.step_id), steps_icon, steps_label, steps_css, steps_sub), unsafe_allow_html=True)
-        with k2:
-            if not df.empty:
-                t = trends["quantum"]
-                st.markdown(kpi_card("Quantum share", f"{summary['quantum_share']:.1%}", t["icon"], t["label"], t["css"], quantum_sub), unsafe_allow_html=True)
-            else:
-                st.markdown(kpi_card("Quantum share", "0.0%", "●", "Collecting baseline", "trend-flat", quantum_sub), unsafe_allow_html=True)
-        with k3:
-            if not df.empty:
-                t = trends["fallback"]
-                st.markdown(kpi_card("Fallback rate", f"{summary['fallback_share']:.1%}", t["icon"], t["label"], t["css"], fallback_sub), unsafe_allow_html=True)
-            else:
-                st.markdown(kpi_card("Fallback rate", "0.0%", "●", "Collecting baseline", "trend-flat", fallback_sub), unsafe_allow_html=True)
-        with k4:
-            if not df.empty:
-                t = trends["latency"]
-                st.markdown(kpi_card("Avg latency", f"{summary['avg_latency']:.0f} ms", t["icon"], t["label"], t["css"], latency_sub), unsafe_allow_html=True)
-            else:
-                st.markdown(kpi_card("Avg latency", "0 ms", "●", "Collecting baseline", "trend-flat", latency_sub), unsafe_allow_html=True)
-        with k5:
-            if not df.empty:
-                t = trends["confidence"]
-                st.markdown(kpi_card("Mean confidence", f"{summary['mean_confidence']:.2f}", t["icon"], t["label"], t["css"], confidence_sub), unsafe_allow_html=True)
-            else:
-                st.markdown(kpi_card("Mean confidence", "0.00", "●", "Collecting baseline", "trend-flat", confidence_sub), unsafe_allow_html=True)
+with twin_tab:
+    st.markdown(panel_intro("Twin drill-down", "Focused asset analysis", "This tab is more stable than Overview. Use it for closer reading of one twin without continuous full-tab refreshing."), unsafe_allow_html=True)
+    current_df = pd.DataFrame(ss.records)
+    if not ss.core.registry:
+        st.info("No twins initialised yet.")
+    else:
+        twin_options = list(ss.core.registry.keys())
+        selected_twin = st.selectbox("Twin for detailed analysis", twin_options, index=twin_options.index(ss.focus_twin) if ss.focus_twin in twin_options else 0, key="drill_twin")
+        ss.focus_twin = selected_twin
+        selected_state = ss.core.registry[selected_twin]
+        twin_df = current_df[current_df["twin_id"] == selected_twin].copy() if not current_df.empty else pd.DataFrame()
+        if not twin_df.empty:
+            twin_df["step"] = range(1, len(twin_df) + 1)
 
-    with notice_slot.container():
-        if df.empty:
-            st.info("Ready to run. Choose a preset or press Start/Step from the sidebar.")
-        elif summary["fallback_share"] > 0.35:
-            st.warning("Fallback rate is elevated. This is useful for demoing governance, but it may indicate aggressive quantum routing or queue pressure.")
-        elif summary["quantum_share"] > 0.45:
-            st.success("Quantum routing is active across a significant share of steps, which makes this run well suited for showcasing hybrid orchestration.")
-        else:
-            st.info("This run is currently conservative. Switch to a more aggressive preset if you want more visible quantum activity.")
+        top_left, top_right = st.columns([1.5, 1], gap="large")
+        with top_left:
+            st.plotly_chart(
+                build_twin_focus_figure(twin_df, ss.accent_palette, int(ss.live_window)),
+                use_container_width=True,
+                config={"displayModeBar": False, "responsive": True},
+            )
+        with top_right:
+            route_counts = twin_df["route"].value_counts() if not twin_df.empty else pd.Series(dtype=int)
+            st.plotly_chart(
+                build_donut_figure(route_counts, ss.accent_palette, f"Routes · {selected_twin}"),
+                use_container_width=True,
+                config={"displayModeBar": False, "responsive": True},
+            )
 
-    perf_chart_slot.plotly_chart(
-        build_system_performance_figure(df, ss.accent_palette, int(ss.live_window)),
-        use_container_width=True,
-        config={"displayModeBar": False, "responsive": True, "staticPlot": False},
-        key="perf_live_chart",
-    )
-    route_chart_slot.plotly_chart(
-        build_donut_figure(route_counts, ss.accent_palette, "Routes"),
-        use_container_width=True,
-        config={"displayModeBar": False, "responsive": True, "staticPlot": False},
-        key="route_live_chart",
-    )
-    reason_chart_slot.plotly_chart(
-        build_reason_bar_figure(fallback_counts, ss.accent_palette),
-        use_container_width=True,
-        config={"displayModeBar": False, "responsive": True, "staticPlot": False},
-        key="reason_live_chart",
-    )
+        state_df = pd.DataFrame(
+            [
+                {"Field": "Twin ID", "Value": selected_twin},
+                {"Field": "Health", "Value": round(float(selected_state.health), 4)},
+                {"Field": "x1", "Value": round(float(selected_state.x1), 4)},
+                {"Field": "x2", "Value": round(float(selected_state.x2), 4)},
+                {"Field": "x3", "Value": round(float(selected_state.x3), 4)},
+                {"Field": "Last mode", "Value": selected_state.last_action.get("mode", "-")},
+                {"Field": "Last damp", "Value": round(float(selected_state.last_action.get("damp", 0.0)), 4)},
+                {"Field": "Timestamp", "Value": selected_state.ts},
+            ]
+        )
+        events_df = twin_df[["step_id", "route", "exec_ms", "latency_breach", "confidence"]].tail(20).copy() if not twin_df.empty else pd.DataFrame(columns=["step_id", "route", "exec_ms", "latency_breach", "confidence"])
+        bottom_left, bottom_right = st.columns([1, 1.2], gap="large")
+        with bottom_left:
+            st.dataframe(state_df, use_container_width=True, hide_index=True, height=320)
+        with bottom_right:
+            st.dataframe(events_df, use_container_width=True, hide_index=True, height=320)
 
-    focus_twin = ss.focus_twin if ss.focus_twin in ss.core.registry else next(iter(ss.core.registry.keys()))
-    twin_state = ss.core.registry[focus_twin]
-    twin_df = df[df["twin_id"] == focus_twin].copy() if not df.empty else pd.DataFrame()
-    if not twin_df.empty:
-        twin_df["step"] = range(1, len(twin_df) + 1)
-
-    twin_snapshot = get_twin_snapshot(ss.core)
-    twin_title_slot.markdown(panel_intro("Focused twin", f"Activity timeline · {focus_twin}", "Objective and latency evolution for the selected twin across the live window."), unsafe_allow_html=True)
-    twin_chart_slot.plotly_chart(
-        build_twin_focus_figure(twin_df, ss.accent_palette, int(ss.live_window)),
-        use_container_width=True,
-        config={"displayModeBar": False, "responsive": True, "staticPlot": False},
-        key="twin_live_chart",
-    )
-    health_chart_slot.plotly_chart(
-        build_health_figure(twin_snapshot, ss.accent_palette),
-        use_container_width=True,
-        config={"displayModeBar": False, "responsive": True, "staticPlot": False},
-        key="health_live_chart",
-    )
-
-    twin_state_df = pd.DataFrame(
-        [
-            {"field": "twin_id", "value": focus_twin},
-            {"field": "health", "value": round(float(twin_state.health), 4)},
-            {"field": "x1", "value": round(float(twin_state.x1), 4)},
-            {"field": "x2", "value": round(float(twin_state.x2), 4)},
-            {"field": "x3", "value": round(float(twin_state.x3), 4)},
-            {"field": "last_mode", "value": twin_state.last_action.get("mode", "-")},
-            {"field": "last_damp", "value": round(float(twin_state.last_action.get("damp", 0.0)), 4)},
-            {"field": "timestamp", "value": twin_state.ts},
-        ]
-    )
-    recent_events = df[["step_id", "twin_id", "route", "exec_ms", "latency_breach"]].tail(12).copy() if not df.empty else pd.DataFrame(columns=["step_id", "twin_id", "route", "exec_ms", "latency_breach"])
-
-    state_table_slot.dataframe(twin_state_df, use_container_width=True, hide_index=True, height=300)
-    events_table_slot.dataframe(recent_events, use_container_width=True, hide_index=True, height=300)
-
-
-
-_fragment = getattr(st, "fragment", None)
-if _fragment is None:
-    _fragment = getattr(st, "experimental_fragment", None)
-
-run_every = float(ss.ui_refresh_ms) / 1000.0 if ss.running else None
-
-if _fragment is not None:
-    @_fragment(run_every=run_every)
-    def live_dashboard_fragment() -> None:
-        render_live_area()
-else:
-    def live_dashboard_fragment() -> None:
-        render_live_area()
-
-live_dashboard_fragment()
-
-st.subheader("Audit and exports")
-current_df = pd.DataFrame(ss.records)
-current_summary = compute_summary(current_df)
-with st.expander("Audit log and downloads", expanded=False):
+with audit_tab:
+    st.markdown(panel_intro("Audit inspector", "Run evidence and exports", "This tab keeps audit records, exports and per-row inspection outside the live fragment so it remains stable and reliable."), unsafe_allow_html=True)
+    current_df = pd.DataFrame(ss.records)
+    current_summary = compute_summary(current_df)
     if current_df.empty:
         st.caption("No audit data yet.")
     else:
         audit_cols = ["step_id", "ts", "twin_id", "route", "exec_ms", "qpu_queue_ms", "noise_proxy", "cost_eur", "latency_breach"]
-        st.dataframe(current_df[audit_cols].tail(50), use_container_width=True, height=260, hide_index=True)
+        st.dataframe(current_df[audit_cols].tail(80), use_container_width=True, height=280, hide_index=True)
+
+        row_idx = st.number_input("Inspect row", min_value=0, max_value=max(0, len(current_df) - 1), value=max(0, len(current_df) - 1), step=1, key="audit_row_idx")
+        row = current_df.iloc[int(row_idx)]
+
+        def safe_json(s: Any) -> Any:
+            if s is None or (isinstance(s, float) and pd.isna(s)):
+                return None
+            try:
+                return json.loads(s)
+            except Exception:
+                return None
+
+        qre_obj = safe_json(row.get("qre_json"))
+        res_obj = safe_json(row.get("result_json"))
+        inspect_left, inspect_right = st.columns(2, gap="large")
+        with inspect_left:
+            st.markdown("**QRE**")
+            st.json(qre_obj) if qre_obj else st.caption("No QRE recorded for this step.")
+        with inspect_right:
+            st.markdown("**Quantum result**")
+            st.json(res_obj) if res_obj else st.caption("No quantum result recorded for this step.")
+
         export_left, export_right, export_third = st.columns(3)
         with export_left:
             csv_bytes = current_df.to_csv(index=False).encode("utf-8")
@@ -1315,3 +1369,31 @@ with st.expander("Audit log and downloads", expanded=False):
         with export_third:
             report = make_markdown_report(current_df, current_summary, str(ss.correlation_id), int(ss.twins), str(ss.policy)).encode("utf-8")
             st.download_button("Download Markdown summary", data=report, file_name="hybrid_control_room_summary.md", mime="text/markdown", use_container_width=True, key="dl_md")
+
+with about_tab:
+    st.markdown(panel_intro("About", "Hybrid control-room narrative", "A static explanatory view for presentations, so the audience can understand the architecture and value proposition without watching live charts."), unsafe_allow_html=True)
+    st.markdown(architecture_panel(), unsafe_allow_html=True)
+    about_left, about_right = st.columns([1.2, 1], gap="large")
+    with about_left:
+        st.markdown("""
+**Hybrid Quantum-Classical Control Room** is a presentation layer for a simulated orchestration stack in which a classical baseline, a simulated cloud-QPU gateway and governance rules coexist inside the same operational loop.
+
+The interface is organised so that **Overview** behaves like the live wall, while the other tabs act as stable analytical surfaces for inspection, explanation and export. This preserves the original navigation logic without sacrificing the visual stability needed for a convincing real-time demo.
+
+The architecture links synthetic telemetry, twin state updates, feature extraction, route selection, quantum request envelopes, governed fallback, audit logging and exportable evidence. In a presentation context, this lets you move naturally from live monitoring to explainability and then to governance evidence.
+        """)
+    with about_right:
+        latest_df = pd.DataFrame(ss.records)
+        summary = compute_summary(latest_df)
+        summary_df = pd.DataFrame(
+            [
+                {"Metric": "Total steps", "Value": ss.step_id},
+                {"Metric": "Quantum share", "Value": f"{summary['quantum_share']:.1%}"},
+                {"Metric": "Fallback rate", "Value": f"{summary['fallback_share']:.1%}"},
+                {"Metric": "Average latency", "Value": f"{summary['avg_latency']:.0f} ms"},
+                {"Metric": "Mean confidence", "Value": f"{summary['mean_confidence']:.2f}"},
+                {"Metric": "Policy", "Value": ss.policy},
+                {"Metric": "Twins", "Value": ss.twins},
+            ]
+        )
+        st.dataframe(summary_df, use_container_width=True, hide_index=True, height=290)
