@@ -75,3 +75,8 @@ The repository uses direct imports from `src/q_infratwin` instead of loading the
 3. Open **Twin drill-down** to inspect a single twin.
 4. Open **Audit inspector** to show the quantum request and result envelopes.
 5. Export the markdown run summary for reporting.
+
+
+## Visual identity
+
+This public demo includes multiple typography styles, refined accent palettes, a dark main dashboard, a light control sidebar, and a system-architecture cover block designed for stakeholder presentations.

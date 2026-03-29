@@ -26,35 +26,79 @@ st.set_page_config(
 
 VISUAL_STYLES = {
     "Mission Control": {
-        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');",
-        "heading_font": "'Exo 2', sans-serif",
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Rajdhani', sans-serif",
         "body_font": "'Inter', sans-serif",
         "mono_font": "'JetBrains Mono', monospace",
-        "title_letter_spacing": "0.015em",
+        "title_letter_spacing": "0.04em",
     },
     "Cyber Minimal": {
         "font_import": "@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');",
         "heading_font": "'Space Grotesk', sans-serif",
         "body_font": "'Inter', sans-serif",
         "mono_font": "'JetBrains Mono', monospace",
-        "title_letter_spacing": "0.01em",
+        "title_letter_spacing": "0.02em",
     },
     "Research Console": {
-        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');",
-        "heading_font": "'Oxanium', sans-serif",
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Chakra Petch', sans-serif",
         "body_font": "'Inter', sans-serif",
         "mono_font": "'JetBrains Mono', monospace",
-        "title_letter_spacing": "0.02em",
+        "title_letter_spacing": "0.03em",
+    },
+}
+
+ACCENT_PALETTES = {
+    "Cobalt Mint": {
+        "primary": "#69e7d5",
+        "secondary": "#7aa2ff",
+        "muted": "#a9bedf",
+        "chip_bg": "rgba(105, 231, 213, 0.14)",
+        "hero_glow": "rgba(122, 162, 255, 0.22)",
+        "hero_glow_two": "rgba(105, 231, 213, 0.14)",
+        "sidebar_top": "#f7f9fc",
+        "sidebar_bottom": "#edf2f8",
+        "sidebar_border": "rgba(15, 23, 36, 0.08)",
+    },
+    "Graphite Cyan": {
+        "primary": "#7ae6ff",
+        "secondary": "#8ea6ff",
+        "muted": "#bdd3e6",
+        "chip_bg": "rgba(122, 230, 255, 0.14)",
+        "hero_glow": "rgba(122, 230, 255, 0.16)",
+        "hero_glow_two": "rgba(142, 166, 255, 0.16)",
+        "sidebar_top": "#f7f9fc",
+        "sidebar_bottom": "#edf2f8",
+        "sidebar_border": "rgba(15, 23, 36, 0.08)",
+    },
+    "Violet Ice": {
+        "primary": "#b6c7ff",
+        "secondary": "#8af0dc",
+        "muted": "#cad6f1",
+        "chip_bg": "rgba(182, 199, 255, 0.14)",
+        "hero_glow": "rgba(182, 199, 255, 0.18)",
+        "hero_glow_two": "rgba(138, 240, 220, 0.12)",
+        "sidebar_top": "#f7f9fc",
+        "sidebar_bottom": "#edf2f8",
+        "sidebar_border": "rgba(15, 23, 36, 0.08)",
     },
 }
 
 
-def build_theme_css(style_name: str) -> str:
+def build_theme_css(style_name: str, palette_name: str) -> str:
     style = VISUAL_STYLES.get(style_name, VISUAL_STYLES["Mission Control"])
+    palette = ACCENT_PALETTES.get(palette_name, ACCENT_PALETTES["Cobalt Mint"])
     return f"""
     <style>
     {style['font_import']}
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap');
+
+    :root {{
+        --primary: {palette['primary']};
+        --secondary: {palette['secondary']};
+        --muted: {palette['muted']};
+        --chip-bg: {palette['chip_bg']};
+    }}
 
     html, body, [class*="css"] {{
         font-family: {style['body_font']};
@@ -67,50 +111,208 @@ def build_theme_css(style_name: str) -> str:
 
     .stApp {{
         background:
-            radial-gradient(circle at top right, rgba(67, 97, 238, 0.20), transparent 28%),
-            radial-gradient(circle at top left, rgba(19, 214, 201, 0.10), transparent 24%),
-            linear-gradient(180deg, #030711 0%, #07101b 48%, #040913 100%);
+            radial-gradient(circle at top right, {palette['hero_glow']}, transparent 30%),
+            radial-gradient(circle at top left, {palette['hero_glow_two']}, transparent 25%),
+            linear-gradient(180deg, #02060d 0%, #07101b 55%, #040913 100%);
     }}
 
     .block-container {{
-        padding-top: 1.05rem;
-        padding-bottom: 1.6rem;
+        padding-top: 1rem;
+        padding-bottom: 1.7rem;
         max-width: 1500px;
     }}
 
-    h1, h2, h3, .tech-title, .kpi-label {{
+    h1, h2, h3, .tech-title, .kpi-label, .brand-wordmark, .section-heading {{
         font-family: {style['heading_font']} !important;
         letter-spacing: {style['title_letter_spacing']};
         color: #f7fbff !important;
     }}
 
-    .hero-card {{
-        padding: 1.1rem 1.25rem;
-        border: 1px solid rgba(122, 146, 190, 0.34);
-        border-radius: 1rem;
-        background: linear-gradient(180deg, rgba(15, 24, 40, 0.96) 0%, rgba(7, 13, 23, 0.96) 100%);
-        box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.08), 0 10px 30px rgba(0, 0, 0, 0.24);
-        margin-bottom: 0.85rem;
+    .brand-shell {{
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+        gap: 1rem;
+        margin-bottom: 0.95rem;
     }}
 
-    .hero-note {{
-        font-size: 1.03rem;
-        line-height: 1.4;
-        color: #f2f7ff !important;
+    .hero-card {{
+        padding: 1.2rem 1.3rem 1.15rem 1.3rem;
+        border: 1px solid rgba(122, 146, 190, 0.28);
+        border-radius: 1.15rem;
+        background: linear-gradient(180deg, rgba(14, 20, 33, 0.96) 0%, rgba(8, 13, 23, 0.96) 100%);
+        box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.06), 0 14px 38px rgba(0, 0, 0, 0.28);
+    }}
+
+    .hero-topline {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--primary) !important;
+        padding: 0.35rem 0.62rem;
+        border-radius: 999px;
+        background: var(--chip-bg);
+        border: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 0.75rem;
+    }}
+
+    .brand-row {{
+        display: flex;
+        align-items: flex-start;
+        gap: 0.9rem;
+        margin-bottom: 0.7rem;
+    }}
+
+    .brand-badge {{
+        width: 3.1rem;
+        height: 3.1rem;
+        border-radius: 0.95rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.45rem;
+        background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: inset 0 0 18px rgba(255,255,255,0.025);
+    }}
+
+    .brand-wordmark {{
+        font-size: 2.1rem;
+        line-height: 1;
+        margin-bottom: 0.35rem;
+    }}
+
+    .brand-subtitle {{
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #edf5ff !important;
+        max-width: 54rem;
+    }}
+
+    .hero-chip-row, .status-chip-row {{
+        display: flex;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        margin-top: 0.9rem;
+    }}
+
+    .hero-chip, .status-chip {{
+        padding: 0.44rem 0.68rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.03);
+        color: #edf5ff !important;
+    }}
+
+    .status-panel {{
+        display: grid;
+        gap: 0.75rem;
+    }}
+
+    .status-card {{
+        padding: 1rem 1.05rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(124, 146, 183, 0.22);
+        background: linear-gradient(180deg, rgba(12, 18, 29, 0.98), rgba(7, 12, 21, 0.98));
+    }}
+
+    .status-label {{
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted) !important;
+        margin-bottom: 0.35rem;
+    }}
+
+    .status-value {{
+        font-family: {style['heading_font']};
+        font-size: 1.15rem;
+        color: #ffffff !important;
+    }}
+
+    .architecture-card {{
+        margin-top: 0.95rem;
+        margin-bottom: 0.9rem;
+        padding: 1rem 1.1rem 1.05rem 1.1rem;
+        border: 1px solid rgba(124, 146, 183, 0.22);
+        border-radius: 1.1rem;
+        background: linear-gradient(180deg, rgba(11, 16, 27, 0.96), rgba(7, 12, 22, 0.96));
+    }}
+
+    .architecture-title {{
+        font-family: {style['heading_font']};
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #f7fbff !important;
+        margin-bottom: 0.8rem;
+    }}
+
+    .architecture-grid {{
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 0.7rem;
+        align-items: stretch;
+    }}
+
+    .arch-node {{
+        position: relative;
+        min-height: 112px;
+        padding: 0.9rem 0.85rem;
+        border-radius: 0.95rem;
+        background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+        border: 1px solid rgba(255,255,255,0.08);
+        overflow: hidden;
+    }}
+
+    .arch-node::before {{
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        background: linear-gradient(180deg, var(--primary), var(--secondary));
+        border-radius: 4px;
+    }}
+
+    .arch-node-title {{
+        font-family: {style['heading_font']};
+        font-size: 0.86rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #f8fbff !important;
+        margin-bottom: 0.45rem;
+    }}
+
+    .arch-node-text {{
+        font-size: 0.84rem;
+        line-height: 1.45;
+        color: #dce8fb !important;
+    }}
+
+    .arch-node-arrow {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        color: var(--primary) !important;
+        opacity: 0.82;
     }}
 
     .kpi-card {{
-        border: 1px solid rgba(95, 117, 162, 0.34);
+        border: 1px solid rgba(95, 117, 162, 0.28);
         border-radius: 1rem;
         padding: 0.95rem 1rem 0.85rem 1rem;
         min-height: 132px;
-        background: linear-gradient(180deg, rgba(15, 22, 35, 0.97), rgba(7, 14, 25, 0.97));
-        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.05), 0 8px 24px rgba(0,0,0,0.20);
+        background: linear-gradient(180deg, rgba(14, 21, 34, 0.97), rgba(7, 13, 24, 0.97));
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.04), 0 10px 24px rgba(0,0,0,0.22);
     }}
 
     .kpi-label {{
-        color: #c6d8f7 !important;
-        font-size: 0.80rem;
+        color: var(--muted) !important;
+        font-size: 0.81rem;
         text-transform: uppercase;
         margin-bottom: 0.28rem;
     }}
@@ -134,7 +336,7 @@ def build_theme_css(style_name: str) -> str:
     }}
 
     .kpi-sub {{
-        font-size: 0.92rem;
+        font-size: 0.91rem;
         color: #c7d6ef !important;
         margin-top: 0.35rem;
     }}
@@ -146,8 +348,115 @@ def build_theme_css(style_name: str) -> str:
         margin-bottom: 0.5rem;
     }}
 
+    .info-panel {{
+        padding: 0.95rem 1rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: linear-gradient(180deg, rgba(11, 17, 28, 0.96), rgba(7, 12, 21, 0.96));
+        margin-bottom: 0.8rem;
+    }}
+
+    .info-title {{
+        font-family: {style['heading_font']};
+        font-size: 0.96rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #f7fbff !important;
+        margin-bottom: 0.45rem;
+    }}
+
+    .info-body {{
+        color: #dce8fb !important;
+        line-height: 1.55;
+        font-size: 0.92rem;
+    }}
+
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 0.4rem;
+    }}
+
     .stTabs [data-baseweb="tab"] {{
         color: #eaf2ff !important;
+        background: rgba(255,255,255,0.03);
+        border-radius: 999px;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        border: 1px solid rgba(255,255,255,0.06);
+    }}
+
+    .stTabs [aria-selected="true"] {{
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04)) !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }}
+
+    section[data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, {palette['sidebar_top']} 0%, {palette['sidebar_bottom']} 100%) !important;
+        border-right: 1px solid {palette['sidebar_border']};
+    }}
+
+    section[data-testid="stSidebar"] * {{
+        color: #111827 !important;
+    }}
+
+    .sidebar-brand {{
+        padding: 1rem 1rem 0.95rem 1rem;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.70));
+        border: 1px solid rgba(15, 23, 36, 0.06);
+        box-shadow: 0 8px 22px rgba(15, 23, 36, 0.08);
+        margin-bottom: 0.85rem;
+    }}
+
+    .sidebar-brand-title {{
+        font-family: {style['heading_font']};
+        font-size: 1.15rem;
+        color: #0f1724 !important;
+        margin-bottom: 0.28rem;
+    }}
+
+    .sidebar-brand-text {{
+        color: #334155 !important;
+        font-size: 0.89rem;
+        line-height: 1.45;
+    }}
+
+    .sidebar-section {{
+        margin-top: 0.35rem;
+        margin-bottom: 0.35rem;
+        padding: 0.78rem 0.85rem 0.72rem 0.85rem;
+        border-radius: 0.95rem;
+        border: 1px solid rgba(15, 23, 36, 0.07);
+        background: rgba(255,255,255,0.58);
+    }}
+
+    .sidebar-section-title {{
+        font-family: {style['heading_font']};
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.86rem;
+        color: #0f1724 !important;
+        margin-bottom: 0.2rem;
+    }}
+
+    .sidebar-section-copy {{
+        font-size: 0.84rem;
+        color: #475569 !important;
+        line-height: 1.4;
+    }}
+
+    section[data-testid="stSidebar"] [data-baseweb="select"] > div,
+    section[data-testid="stSidebar"] [data-baseweb="input"] > div,
+    section[data-testid="stSidebar"] input,
+    section[data-testid="stSidebar"] textarea {{
+        background: rgba(255,255,255,0.88) !important;
+        color: #0f1724 !important;
+        border-color: rgba(15, 23, 36, 0.15) !important;
+    }}
+
+    section[data-testid="stSidebar"] button {{
+        border-radius: 0.8rem !important;
+        border: 1px solid rgba(15, 23, 36, 0.10) !important;
+        box-shadow: none !important;
     }}
 
     .stSlider label, .stSelectbox label, .stNumberInput label, .stCheckbox label {{
@@ -165,22 +474,87 @@ def build_theme_css(style_name: str) -> str:
     .trend-up {{ color: #43f08f !important; }}
     .trend-down {{ color: #ff7a92 !important; }}
     .trend-flat {{ color: #ffd166 !important; }}
-    .trend-live {{ color: #58f0d2 !important; }}
+    .trend-live {{ color: var(--primary) !important; }}
     .trend-pause {{ color: #ffd166 !important; }}
     .trend-idle {{ color: #afc3e8 !important; }}
 
-    div[data-testid="stMetric"] {{
-        background: transparent;
-        border: none;
-        padding: 0;
+    @media (max-width: 1200px) {{
+        .brand-shell {{ grid-template-columns: 1fr; }}
+        .architecture-grid {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
+        .arch-node-arrow {{ display: none; }}
+    }}
+
+    @media (max-width: 780px) {{
+        .architecture-grid {{ grid-template-columns: 1fr; }}
     }}
     </style>
     """
 
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+def hero_panel(summary: dict[str, Any], running: bool, style_name: str, palette_name: str, route_counts: pd.Series) -> str:
+    run_state = "Live" if running else "Standby"
+    routes = ", ".join(f"{k}: {v}" for k, v in route_counts.to_dict().items()) if not route_counts.empty else "No routes yet"
+    return f"""
+    <div class="brand-shell">
+      <div class="hero-card">
+        <div class="hero-topline">⚛ Operational Demonstrator · Hybrid orchestration</div>
+        <div class="brand-row">
+          <div class="brand-badge">⚛</div>
+          <div>
+            <div class="brand-wordmark">Hybrid Quantum-Classical Control Room</div>
+            <div class="brand-subtitle">
+              Live control-room view for a multi-twin orchestration layer combining classical solving, cloud-accessed quantum execution,
+              queue-aware governance and audit-ready result tracing in a single operational interface.
+            </div>
+          </div>
+        </div>
+        <div class="hero-chip-row">
+          <div class="hero-chip">Style: {style_name}</div>
+          <div class="hero-chip">Palette: {palette_name}</div>
+          <div class="hero-chip">Quantum share: {summary['quantum_share']:.1%}</div>
+          <div class="hero-chip">Fallback rate: {summary['fallback_share']:.1%}</div>
+        </div>
+      </div>
+      <div class="status-panel">
+        <div class="status-card">
+          <div class="status-label">System state</div>
+          <div class="status-value">{run_state}</div>
+          <div class="status-chip-row">
+            <div class="status-chip">Mean confidence {summary['mean_confidence']:.2f}</div>
+            <div class="status-chip">Avg latency {summary['avg_latency']:.0f} ms</div>
+          </div>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Routing mix</div>
+          <div class="status-value">{routes}</div>
+        </div>
+      </div>
+    </div>
+    """
+
+
+def architecture_panel() -> str:
+    nodes = [
+        ("Edge telemetry", "Synthetic infrastructure signals and state changes emitted per asset twin."),
+        ("Twin runtime", "TwinCORE registry updates health, state vectors and last applied actions."),
+        ("Hybrid orchestrator", "Routing policy evaluates eligibility, SLA, queue pressure and expected value."),
+        ("Classical / QPU", "Classical baseline or simulated cloud quantum execution produces candidate decisions."),
+        ("Governance", "Fallback checks, validation, latency control and breach handling decide final action."),
+        ("Control room", "KPIs, live trends, per-twin drill-down and audit inspector expose the full trace."),
+    ]
+    items = []
+    for i, (title, text) in enumerate(nodes):
+        items.append(
+            f'<div class="arch-node"><div class="arch-node-title">{title}</div><div class="arch-node-text">{text}</div></div>'
+        )
+    grid = ''.join(items)
+    return f"""
+    <div class="architecture-card">
+      <div class="architecture-title">System architecture</div>
+      <div class="architecture-grid">{grid}</div>
+    </div>
+    """
+
 
 def do_rerun() -> None:
     try:
@@ -419,9 +793,6 @@ def kpi_card(label: str, value: str, icon: str, trend_label: str, css_class: str
     """
 
 
-# -----------------------------------------------------------------------------
-# Session state
-# -----------------------------------------------------------------------------
 ss = st.session_state
 ss.setdefault("core", None)
 ss.setdefault("orch", None)
@@ -443,20 +814,24 @@ ss.setdefault("ui_refresh_ms", 90)
 ss.setdefault("last_step_ts", 0.0)
 ss.setdefault("live_window", 60)
 ss.setdefault("visual_style", "Mission Control")
+ss.setdefault("accent_palette", "Cobalt Mint")
 
-st.markdown(build_theme_css(ss.visual_style), unsafe_allow_html=True)
+st.markdown(build_theme_css(ss.visual_style, ss.accent_palette), unsafe_allow_html=True)
 
 if ss.core is None:
     reset_runtime()
 
-
-# -----------------------------------------------------------------------------
-# Sidebar
-# -----------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("## Demo controls")
-    st.caption("Dark-mode public demo with live quantum/classical orchestration updates.")
-
+    st.markdown(
+        """
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-title">Hybrid Quantum-Classical Control Room</div>
+          <div class="sidebar-brand-text">Elegant demo shell for live hybrid orchestration, quantum routing visibility and stakeholder-facing auditability.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Demo presets</div><div class="sidebar-section-copy">Choose a ready-made execution mood before starting the run.</div></div>', unsafe_allow_html=True)
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("Balanced demo", use_container_width=True):
@@ -470,9 +845,11 @@ with st.sidebar:
         apply_preset("Quantum stress")
         do_rerun()
 
-    st.divider()
-    st.markdown("## Runtime configuration")
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Visual identity</div><div class="sidebar-section-copy">Select a typography family and accent palette for the control-room presentation.</div></div>', unsafe_allow_html=True)
     ss.visual_style = st.selectbox("Visual style", list(VISUAL_STYLES.keys()), index=list(VISUAL_STYLES.keys()).index(ss.visual_style))
+    ss.accent_palette = st.selectbox("Accent palette", list(ACCENT_PALETTES.keys()), index=list(ACCENT_PALETTES.keys()).index(ss.accent_palette))
+
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Runtime configuration</div><div class="sidebar-section-copy">Adjust orchestration scope, reproducibility and live observation window.</div></div>', unsafe_allow_html=True)
     ss.twins = st.slider("Number of twins", 1, 20, int(ss.twins), help="Applied after Reset or Start.")
     ss.policy = st.selectbox("Routing policy", ["rule", "bandit"], index=1 if ss.policy == "bandit" else 0)
     ss.seed = st.number_input("Random seed", 1, 1_000_000, int(ss.seed))
@@ -481,16 +858,14 @@ with st.sidebar:
     ss.ui_refresh_ms = st.slider("UI refresh (ms)", 50, 1000, int(ss.ui_refresh_ms), step=10)
     ss.live_window = st.slider("Live chart window (steps)", 20, 200, int(ss.live_window), step=10)
 
-    st.divider()
-    st.markdown("## Execution speed")
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Execution speed</div><div class="sidebar-section-copy">Use real-time for visible live evolution or max speed for dense runs.</div></div>', unsafe_allow_html=True)
     ss.speed_mode = st.selectbox("Mode", ["Real-time", "Max speed"], index=0 if ss.speed_mode == "Real-time" else 1)
     if ss.speed_mode == "Real-time":
         ss.interval_ms = st.slider("Step interval (ms)", 50, 2500, int(ss.interval_ms), step=10)
     else:
         ss.batch_steps = st.slider("Steps per tick", 5, 500, int(ss.batch_steps), step=5)
 
-    st.divider()
-    st.markdown("## Controls")
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Controls</div><div class="sidebar-section-copy">Reset starts a fresh run. Step is useful for staged presentations.</div></div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
         if st.button("▶ Start", use_container_width=True):
@@ -512,16 +887,8 @@ with st.sidebar:
             reset_runtime()
             do_rerun()
 
-    st.divider()
-    st.markdown("## Notes")
-    st.caption(
-        "Use real-time mode for visible live evolution. Quantum stress makes routing and fallback behaviour easier to observe on-screen."
-    )
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Presentation note</div><div class="sidebar-section-copy">Balanced demo + Mission Control + Cobalt Mint is the most institutional combination.</div></div>', unsafe_allow_html=True)
 
-
-# -----------------------------------------------------------------------------
-# Live execution loop
-# -----------------------------------------------------------------------------
 if ss.running:
     now = time.time()
     last = ss.get("last_step_ts", 0.0)
@@ -537,9 +904,6 @@ if ss.running:
     do_rerun()
 
 
-# -----------------------------------------------------------------------------
-# Main UI
-# -----------------------------------------------------------------------------
 df = pd.DataFrame(ss.records)
 summary = compute_summary(df)
 trends = metric_trends(df) if not df.empty else None
@@ -547,24 +911,14 @@ progress = min(float(ss.step_id) / float(max(ss.target_steps, 1)), 1.0) if ss.au
 route_counts = df["route"].value_counts() if not df.empty else pd.Series(dtype=int)
 fallback_counts = pd.Series(extract_reasons(df.get("fallback_reasons", pd.Series(dtype=object)))).value_counts() if not df.empty else pd.Series(dtype=int)
 
-st.title("Hybrid Quantum-Classical Control Room")
-st.markdown(
-    """
-    <div class="hero-card">
-    <div class="hero-note"><strong>Live dark-mode demo</strong> of a hybrid orchestration layer with visible real-time graph evolution,
-    queue-aware quantum routing, fallback governance and auditable result inspection across multiple infrastructure twins.</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown(hero_panel(summary, ss.running, ss.visual_style, ss.accent_palette, route_counts), unsafe_allow_html=True)
+st.markdown(architecture_panel(), unsafe_allow_html=True)
 
 headline_left, headline_right = st.columns([3, 1])
 with headline_left:
-    st.caption(
-        f"Run ID: {ss.correlation_id} · Policy: {ss.policy} · Twins: {ss.twins} · Mode: {ss.speed_mode}"
-    )
+    st.caption(f"Run ID: {ss.correlation_id} · Policy: {ss.policy} · Twins: {ss.twins} · Mode: {ss.speed_mode}")
 with headline_right:
-    st.caption(f"Public demo view · dark theme · {ss.visual_style}")
+    st.caption(f"Public demo view · {ss.visual_style} · {ss.accent_palette}")
 
 if ss.auto_stop:
     st.progress(progress, text=f"Progress: {ss.step_id}/{ss.target_steps} steps")
@@ -632,6 +986,8 @@ with tab1:
     plot_df = df.copy()
     plot_df["step"] = range(1, len(plot_df) + 1)
     live_df = plot_df.tail(int(ss.live_window)).copy()
+
+    st.markdown("<div class='info-panel'><div class='info-title'>Presentation framing</div><div class='info-body'>Use the top architecture block to explain the system in one minute, then move into the live evolution charts to show the orchestration actually behaving under runtime conditions.</div></div>", unsafe_allow_html=True)
 
     live_left, live_right = st.columns([2, 1])
     with live_left:
@@ -785,18 +1141,21 @@ with tab4:
     st.markdown(
         """
         1. Launch **Balanced demo** and let it run in real time for 100–180 steps.
-        2. Show the **Overview** tab to explain objective, latency and routing live.
-        3. Open **Twin drill-down** to focus on one asset.
-        4. Use **Audit inspector** to expose the QRE and result envelopes.
-        5. Export the run summary as a stakeholder-ready attachment.
+        2. Use the **architecture block** to explain the system before entering the data.
+        3. Show the **Overview** tab to explain objective, latency and routing live.
+        4. Open **Twin drill-down** to focus on one asset.
+        5. Use **Audit inspector** to expose the QRE and result envelopes.
+        6. Export the run summary as a stakeholder-ready attachment.
         """
     )
 
     st.markdown("**Visual updates included**")
     st.markdown(
         """
-        - Dark dashboard background.
-        - More technological typography.
+        - Refined identity with a product-style hero section.
+        - Elegant light sidebar with black typography.
+        - Architecture overview block for faster storytelling.
+        - Fine accent palettes for institutional or technical demos.
         - Live-update charts with a configurable recent-step window.
         - KPI cards with icon-based evolution indicators.
         """
