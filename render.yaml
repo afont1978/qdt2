@@ -1,5 +1,1234 @@
-services:
-  - type: web
-    name: q-infratwin-webapp
-    env: docker
-    plan: free
+from __future__ import annotations
+
+import json
+import time
+from datetime import datetime
+from typing import Any
+
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+from src.q_infratwin.engine import (
+    ClassicalSolver,
+    EdgeAgentSim,
+    FeatureExtractor,
+    HybridOrchestrator,
+    SimulatedCloudQPU,
+    TwinCORE,
+)
+
+st.set_page_config(
+    page_title="Hybrid Quantum-Classical Control Room",
+    page_icon="⚛️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+VISUAL_STYLES = {
+    "Mission Control": {
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Rajdhani', sans-serif",
+        "body_font": "'Inter', sans-serif",
+        "mono_font": "'JetBrains Mono', monospace",
+        "title_letter_spacing": "0.04em",
+    },
+    "Cyber Minimal": {
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Space Grotesk', sans-serif",
+        "body_font": "'Inter', sans-serif",
+        "mono_font": "'JetBrains Mono', monospace",
+        "title_letter_spacing": "0.02em",
+    },
+    "Research Console": {
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Chakra Petch', sans-serif",
+        "body_font": "'Inter', sans-serif",
+        "mono_font": "'JetBrains Mono', monospace",
+        "title_letter_spacing": "0.03em",
+    },
+}
+
+ACCENT_PALETTES = {
+    "Cobalt Mint": {
+        "primary": "#69e7d5",
+        "secondary": "#7aa2ff",
+        "muted": "#a9bedf",
+        "chip_bg": "rgba(105, 231, 213, 0.14)",
+        "hero_glow": "rgba(122, 162, 255, 0.22)",
+        "hero_glow_two": "rgba(105, 231, 213, 0.14)",
+        "sidebar_top": "#f7f9fc",
+        "sidebar_bottom": "#edf2f8",
+        "sidebar_border": "rgba(15, 23, 36, 0.08)",
+    },
+    "Graphite Cyan": {
+        "primary": "#7ae6ff",
+        "secondary": "#8ea6ff",
+        "muted": "#bdd3e6",
+        "chip_bg": "rgba(122, 230, 255, 0.14)",
+        "hero_glow": "rgba(122, 230, 255, 0.16)",
+        "hero_glow_two": "rgba(142, 166, 255, 0.16)",
+        "sidebar_top": "#f7f9fc",
+        "sidebar_bottom": "#edf2f8",
+        "sidebar_border": "rgba(15, 23, 36, 0.08)",
+    },
+    "Violet Ice": {
+        "primary": "#b6c7ff",
+        "secondary": "#8af0dc",
+        "muted": "#cad6f1",
+        "chip_bg": "rgba(182, 199, 255, 0.14)",
+        "hero_glow": "rgba(182, 199, 255, 0.18)",
+        "hero_glow_two": "rgba(138, 240, 220, 0.12)",
+        "sidebar_top": "#f7f9fc",
+        "sidebar_bottom": "#edf2f8",
+        "sidebar_border": "rgba(15, 23, 36, 0.08)",
+    },
+}
+
+
+def build_theme_css(style_name: str, palette_name: str) -> str:
+    style = VISUAL_STYLES.get(style_name, VISUAL_STYLES["Mission Control"])
+    palette = ACCENT_PALETTES.get(palette_name, ACCENT_PALETTES["Cobalt Mint"])
+    return f"""
+    <style>
+    {style['font_import']}
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap');
+
+    :root {{
+        --primary: {palette['primary']};
+        --secondary: {palette['secondary']};
+        --muted: {palette['muted']};
+        --chip-bg: {palette['chip_bg']};
+    }}
+
+    html, body, [class*="css"] {{
+        font-family: {style['body_font']};
+        color: #edf4ff !important;
+    }}
+
+    p, li, div, label, span, small, .stMarkdown, .stCaption {{
+        color: #eaf2ff !important;
+    }}
+
+    .stApp {{
+        background:
+            radial-gradient(circle at top right, {palette['hero_glow']}, transparent 30%),
+            radial-gradient(circle at top left, {palette['hero_glow_two']}, transparent 25%),
+            linear-gradient(180deg, #02060d 0%, #07101b 55%, #040913 100%);
+    }}
+
+    .block-container {{
+        padding-top: 1rem;
+        padding-bottom: 1.7rem;
+        max-width: 1500px;
+    }}
+
+    h1, h2, h3, .tech-title, .kpi-label, .brand-wordmark, .section-heading {{
+        font-family: {style['heading_font']} !important;
+        letter-spacing: {style['title_letter_spacing']};
+        color: #f7fbff !important;
+    }}
+
+    .brand-shell {{
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+        gap: 1rem;
+        margin-bottom: 0.95rem;
+    }}
+
+    .hero-card {{
+        padding: 1.2rem 1.3rem 1.15rem 1.3rem;
+        border: 1px solid rgba(122, 146, 190, 0.28);
+        border-radius: 1.15rem;
+        background: linear-gradient(180deg, rgba(14, 20, 33, 0.96) 0%, rgba(8, 13, 23, 0.96) 100%);
+        box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.06), 0 14px 38px rgba(0, 0, 0, 0.28);
+    }}
+
+    .hero-topline {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--primary) !important;
+        padding: 0.35rem 0.62rem;
+        border-radius: 999px;
+        background: var(--chip-bg);
+        border: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 0.75rem;
+    }}
+
+    .brand-row {{
+        display: flex;
+        align-items: flex-start;
+        gap: 0.9rem;
+        margin-bottom: 0.7rem;
+    }}
+
+    .brand-badge {{
+        width: 3.1rem;
+        height: 3.1rem;
+        border-radius: 0.95rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.45rem;
+        background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: inset 0 0 18px rgba(255,255,255,0.025);
+    }}
+
+    .brand-wordmark {{
+        font-size: 2.1rem;
+        line-height: 1;
+        margin-bottom: 0.35rem;
+    }}
+
+    .brand-subtitle {{
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #edf5ff !important;
+        max-width: 54rem;
+    }}
+
+    .hero-chip-row, .status-chip-row {{
+        display: flex;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        margin-top: 0.9rem;
+    }}
+
+    .hero-chip, .status-chip {{
+        padding: 0.44rem 0.68rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.03);
+        color: #edf5ff !important;
+    }}
+
+    .status-panel {{
+        display: grid;
+        gap: 0.75rem;
+    }}
+
+    .status-card {{
+        padding: 1rem 1.05rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(124, 146, 183, 0.22);
+        background: linear-gradient(180deg, rgba(12, 18, 29, 0.98), rgba(7, 12, 21, 0.98));
+    }}
+
+    .status-label {{
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted) !important;
+        margin-bottom: 0.35rem;
+    }}
+
+    .status-value {{
+        font-family: {style['heading_font']};
+        font-size: 1.15rem;
+        color: #ffffff !important;
+    }}
+
+    .architecture-card {{
+        margin-top: 0.95rem;
+        margin-bottom: 0.9rem;
+        padding: 1rem 1.1rem 1.05rem 1.1rem;
+        border: 1px solid rgba(124, 146, 183, 0.22);
+        border-radius: 1.1rem;
+        background: linear-gradient(180deg, rgba(11, 16, 27, 0.96), rgba(7, 12, 22, 0.96));
+    }}
+
+    .architecture-title {{
+        font-family: {style['heading_font']};
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #f7fbff !important;
+        margin-bottom: 0.8rem;
+    }}
+
+    .architecture-grid {{
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 0.7rem;
+        align-items: stretch;
+    }}
+
+    .arch-node {{
+        position: relative;
+        min-height: 112px;
+        padding: 0.9rem 0.85rem;
+        border-radius: 0.95rem;
+        background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+        border: 1px solid rgba(255,255,255,0.08);
+        overflow: hidden;
+    }}
+
+    .arch-node::before {{
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        background: linear-gradient(180deg, var(--primary), var(--secondary));
+        border-radius: 4px;
+    }}
+
+    .arch-node-title {{
+        font-family: {style['heading_font']};
+        font-size: 0.86rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #f8fbff !important;
+        margin-bottom: 0.45rem;
+    }}
+
+    .arch-node-text {{
+        font-size: 0.84rem;
+        line-height: 1.45;
+        color: #dce8fb !important;
+    }}
+
+    .arch-node-arrow {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        color: var(--primary) !important;
+        opacity: 0.82;
+    }}
+
+    .kpi-card {{
+        border: 1px solid rgba(95, 117, 162, 0.28);
+        border-radius: 1rem;
+        padding: 0.95rem 1rem 0.85rem 1rem;
+        min-height: 132px;
+        background: linear-gradient(180deg, rgba(14, 21, 34, 0.97), rgba(7, 13, 24, 0.97));
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.04), 0 10px 24px rgba(0,0,0,0.22);
+    }}
+
+    .kpi-label {{
+        color: var(--muted) !important;
+        font-size: 0.81rem;
+        text-transform: uppercase;
+        margin-bottom: 0.28rem;
+    }}
+
+    .kpi-value {{
+        font-family: {style['heading_font']};
+        font-size: 1.55rem;
+        font-weight: 700;
+        line-height: 1.08;
+        color: #ffffff !important;
+        margin-bottom: 0.42rem;
+    }}
+
+    .kpi-trend {{
+        font-size: 0.98rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        color: #dbe8ff !important;
+    }}
+
+    .kpi-sub {{
+        font-size: 0.91rem;
+        color: #c7d6ef !important;
+        margin-top: 0.35rem;
+    }}
+
+    .section-note {{
+        color: #d7e6ff !important;
+        opacity: 0.92;
+        margin-top: -0.35rem;
+        margin-bottom: 0.5rem;
+    }}
+
+    .info-panel {{
+        padding: 0.95rem 1rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: linear-gradient(180deg, rgba(11, 17, 28, 0.96), rgba(7, 12, 21, 0.96));
+        margin-bottom: 0.8rem;
+    }}
+
+    .info-title {{
+        font-family: {style['heading_font']};
+        font-size: 0.96rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #f7fbff !important;
+        margin-bottom: 0.45rem;
+    }}
+
+    .info-body {{
+        color: #dce8fb !important;
+        line-height: 1.55;
+        font-size: 0.92rem;
+    }}
+
+    .chart-shell {{
+        padding: 0.9rem 0.95rem 0.55rem 0.95rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(95, 117, 162, 0.24);
+        background: linear-gradient(180deg, rgba(14, 21, 34, 0.97), rgba(8, 13, 23, 0.97));
+        box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+        margin-bottom: 0.75rem;
+    }}
+
+    .chart-title {{
+        font-family: {style['heading_font']};
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #f7fbff !important;
+        margin-bottom: 0.15rem;
+    }}
+
+    .chart-copy {{
+        font-size: 0.84rem;
+        color: #c7d6ef !important;
+        margin-bottom: 0.5rem;
+    }}
+
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 0.4rem;
+    }}
+
+    .stTabs [data-baseweb="tab"] {{
+        color: #eaf2ff !important;
+        background: rgba(255,255,255,0.03);
+        border-radius: 999px;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        border: 1px solid rgba(255,255,255,0.06);
+    }}
+
+    .stTabs [aria-selected="true"] {{
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04)) !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }}
+
+    section[data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, {palette['sidebar_top']} 0%, {palette['sidebar_bottom']} 100%) !important;
+        border-right: 1px solid {palette['sidebar_border']};
+    }}
+
+    section[data-testid="stSidebar"] * {{
+        color: #111827 !important;
+    }}
+
+    .sidebar-brand {{
+        padding: 1rem 1rem 0.95rem 1rem;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.70));
+        border: 1px solid rgba(15, 23, 36, 0.06);
+        box-shadow: 0 8px 22px rgba(15, 23, 36, 0.08);
+        margin-bottom: 0.85rem;
+    }}
+
+    .sidebar-brand-title {{
+        font-family: {style['heading_font']};
+        font-size: 1.15rem;
+        color: #0f1724 !important;
+        margin-bottom: 0.28rem;
+    }}
+
+    .sidebar-brand-text {{
+        color: #334155 !important;
+        font-size: 0.89rem;
+        line-height: 1.45;
+    }}
+
+    .sidebar-section {{
+        margin-top: 0.35rem;
+        margin-bottom: 0.35rem;
+        padding: 0.78rem 0.85rem 0.72rem 0.85rem;
+        border-radius: 0.95rem;
+        border: 1px solid rgba(15, 23, 36, 0.07);
+        background: rgba(255,255,255,0.58);
+    }}
+
+    .sidebar-section-title {{
+        font-family: {style['heading_font']};
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.86rem;
+        color: #0f1724 !important;
+        margin-bottom: 0.2rem;
+    }}
+
+    .sidebar-section-copy {{
+        font-size: 0.84rem;
+        color: #475569 !important;
+        line-height: 1.4;
+    }}
+
+    section[data-testid="stSidebar"] [data-baseweb="select"] > div,
+    section[data-testid="stSidebar"] [data-baseweb="input"] > div,
+    section[data-testid="stSidebar"] input,
+    section[data-testid="stSidebar"] textarea,
+    section[data-testid="stSidebar"] [data-baseweb="base-input"] > div {{
+        background: rgba(255,255,255,0.92) !important;
+        color: #0f1724 !important;
+        border-color: rgba(15, 23, 36, 0.15) !important;
+    }}
+
+    section[data-testid="stSidebar"] [data-baseweb="select"] *,
+    section[data-testid="stSidebar"] [data-baseweb="input"] *,
+    section[data-testid="stSidebar"] [data-baseweb="base-input"] *,
+    section[data-testid="stSidebar"] [role="combobox"] *,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] * {{
+        color: #111827 !important;
+        fill: #111827 !important;
+    }}
+
+    div[data-baseweb="popover"] *,
+    div[data-baseweb="menu"] *,
+    ul[role="listbox"] *,
+    li[role="option"] *,
+    [role="option"] * {{
+        color: #111827 !important;
+        fill: #111827 !important;
+    }}
+
+    section[data-testid="stSidebar"] button {{
+        border-radius: 0.8rem !important;
+        border: 1px solid rgba(15, 23, 36, 0.10) !important;
+        box-shadow: none !important;
+    }}
+
+    section[data-testid="stSidebar"] .stSlider label,
+    section[data-testid="stSidebar"] .stSelectbox label,
+    section[data-testid="stSidebar"] .stNumberInput label,
+    section[data-testid="stSidebar"] .stCheckbox label,
+    section[data-testid="stSidebar"] .stRadio label,
+    section[data-testid="stSidebar"] .stMultiSelect label {{
+        color: #111827 !important;
+    }}
+
+    .stDataFrame, .stTable {{
+        color: #edf4ff !important;
+    }}
+
+    .stCodeBlock, code, pre {{
+        font-family: {style['mono_font']} !important;
+    }}
+
+    .trend-up {{ color: #43f08f !important; }}
+    .trend-down {{ color: #ff7a92 !important; }}
+    .trend-flat {{ color: #ffd166 !important; }}
+    .trend-live {{ color: var(--primary) !important; }}
+    .trend-pause {{ color: #ffd166 !important; }}
+    .trend-idle {{ color: #afc3e8 !important; }}
+
+    @media (max-width: 1200px) {{
+        .brand-shell {{ grid-template-columns: 1fr; }}
+        .architecture-grid {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
+        .arch-node-arrow {{ display: none; }}
+    }}
+
+    @media (max-width: 780px) {{
+        .architecture-grid {{ grid-template-columns: 1fr; }}
+    }}
+    </style>
+    """
+
+
+def hero_panel(summary: dict[str, Any], running: bool, style_name: str, palette_name: str, route_counts: pd.Series) -> str:
+    run_state = "Live" if running else "Standby"
+    routes = ", ".join(f"{k}: {v}" for k, v in route_counts.to_dict().items()) if not route_counts.empty else "No routes yet"
+    return f"""
+    <div class="brand-shell">
+      <div class="hero-card">
+        <div class="hero-topline">⚛ Operational Demonstrator · Hybrid orchestration</div>
+        <div class="brand-row">
+          <div class="brand-badge">⚛</div>
+          <div>
+            <div class="brand-wordmark">Hybrid Quantum-Classical Control Room</div>
+            <div class="brand-subtitle">
+              Live control-room view for a multi-twin orchestration layer combining classical solving, cloud-accessed quantum execution,
+              queue-aware governance and audit-ready result tracing in a single operational interface.
+            </div>
+          </div>
+        </div>
+        <div class="hero-chip-row">
+          <div class="hero-chip">Style: {style_name}</div>
+          <div class="hero-chip">Palette: {palette_name}</div>
+          <div class="hero-chip">Quantum share: {summary['quantum_share']:.1%}</div>
+          <div class="hero-chip">Fallback rate: {summary['fallback_share']:.1%}</div>
+        </div>
+      </div>
+      <div class="status-panel">
+        <div class="status-card">
+          <div class="status-label">System state</div>
+          <div class="status-value">{run_state}</div>
+          <div class="status-chip-row">
+            <div class="status-chip">Mean confidence {summary['mean_confidence']:.2f}</div>
+            <div class="status-chip">Avg latency {summary['avg_latency']:.0f} ms</div>
+          </div>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Routing mix</div>
+          <div class="status-value">{routes}</div>
+        </div>
+      </div>
+    </div>
+    """
+
+
+def architecture_panel() -> str:
+    nodes = [
+        ("Edge telemetry", "Synthetic infrastructure signals and state changes emitted per asset twin."),
+        ("Twin runtime", "TwinCORE registry updates health, state vectors and last applied actions."),
+        ("Hybrid orchestrator", "Routing policy evaluates eligibility, SLA, queue pressure and expected value."),
+        ("Classical / QPU", "Classical baseline or simulated cloud quantum execution produces candidate decisions."),
+        ("Governance", "Fallback checks, validation, latency control and breach handling decide final action."),
+        ("Control room", "KPIs, live trends, per-twin drill-down and audit inspector expose the full trace."),
+    ]
+    items = []
+    for i, (title, text) in enumerate(nodes):
+        items.append(
+            f'<div class="arch-node"><div class="arch-node-title">{title}</div><div class="arch-node-text">{text}</div></div>'
+        )
+    grid = ''.join(items)
+    return f"""
+    <div class="architecture-card">
+      <div class="architecture-title">System architecture</div>
+      <div class="architecture-grid">{grid}</div>
+    </div>
+    """
+
+
+def do_rerun() -> None:
+    try:
+        st.rerun()
+    except Exception:
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
+
+
+def build_runtime(twins: int, policy: str, seed: int):
+    import numpy as np
+
+    rng = np.random.default_rng(int(seed))
+    core = TwinCORE()
+    agents: dict[str, EdgeAgentSim] = {}
+    twin_ids: list[str] = []
+
+    for i in range(int(twins)):
+        twin_id = f"infra:asset:{i+1:03d}"
+        core.create_twin(twin_id=twin_id, level="asset", topology_ref="graph://infra_demo_v1")
+        agents[twin_id] = EdgeAgentSim(source_id=twin_id, seed=int(rng.integers(1, 10_000)))
+        twin_ids.append(twin_id)
+
+    extractor = FeatureExtractor(window=12)
+    classical = ClassicalSolver()
+    gateway = SimulatedCloudQPU(seed=int(seed))
+    orch = HybridOrchestrator(
+        gateway=gateway,
+        classical=classical,
+        extractor=extractor,
+        policy=str(policy),
+        seed=int(seed),
+    )
+    return core, orch, agents, twin_ids
+
+
+def extract_reasons(series: pd.Series) -> list[str]:
+    reasons: list[str] = []
+    for value in series.fillna(""):
+        if isinstance(value, list):
+            reasons.extend(value)
+        elif isinstance(value, str) and value.startswith("["):
+            try:
+                reasons.extend(json.loads(value.replace("'", '"')))
+            except Exception:
+                parsed = [x.strip().strip('"').strip("'") for x in value.strip("[]").split(",") if x.strip()]
+                reasons.extend(parsed)
+        elif isinstance(value, str) and value:
+            reasons.append(value)
+    return reasons
+
+
+def compute_summary(df: pd.DataFrame) -> dict[str, Any]:
+    if df.empty:
+        return {
+            "quantum_share": 0.0,
+            "fallback_share": 0.0,
+            "avg_latency": 0.0,
+            "mean_confidence": 0.0,
+            "mean_objective": 0.0,
+            "avg_queue": 0.0,
+            "latency_breach_rate": 0.0,
+        }
+
+    quantum_share = float((df["route"] == "QUANTUM").mean())
+    fallback_share = float((df["route"] == "FALLBACK_CLASSICAL").mean())
+    avg_latency = float(df["exec_ms"].mean())
+    mean_confidence = float(df["confidence"].mean())
+    mean_objective = float(df["objective_value"].mean())
+    avg_queue = float(df["qpu_queue_ms"].dropna().mean()) if df["qpu_queue_ms"].notna().any() else 0.0
+    latency_breach_rate = float(df["latency_breach"].mean())
+    return {
+        "quantum_share": quantum_share,
+        "fallback_share": fallback_share,
+        "avg_latency": avg_latency,
+        "mean_confidence": mean_confidence,
+        "mean_objective": mean_objective,
+        "avg_queue": avg_queue,
+        "latency_breach_rate": latency_breach_rate,
+    }
+
+
+def get_twin_snapshot(core: TwinCORE) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for twin_id, state in sorted(core.registry.items()):
+        rows.append(
+            {
+                "twin_id": twin_id,
+                "level": state.level,
+                "health": round(float(state.health), 4),
+                "x1": round(float(state.x1), 4),
+                "x2": round(float(state.x2), 4),
+                "x3": round(float(state.x3), 4),
+                "last_mode": state.last_action.get("mode", "-"),
+                "last_damp": round(float(state.last_action.get("damp", 0.0)), 4),
+                "timestamp": state.ts,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def make_markdown_report(df: pd.DataFrame, summary: dict[str, Any], run_id: str, twins: int, policy: str) -> str:
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    return f"""# Hybrid Quantum-Classical Control Room — Run Summary
+
+Generated: {timestamp}
+Run ID: {run_id}
+Twins: {twins}
+Policy: {policy}
+Steps: {len(df)}
+
+## Core KPIs
+- Quantum share: {summary['quantum_share']:.1%}
+- Fallback share: {summary['fallback_share']:.1%}
+- Average latency: {summary['avg_latency']:.1f} ms
+- Mean confidence: {summary['mean_confidence']:.3f}
+- Mean objective: {summary['mean_objective']:.3f}
+- Latency breach rate: {summary['latency_breach_rate']:.1%}
+- Average queue time: {summary['avg_queue']:.1f} ms
+
+## Route distribution
+{df['route'].value_counts().to_string() if not df.empty else 'No data'}
+"""
+
+
+def reset_runtime() -> None:
+    ss.core, ss.orch, ss.agents, ss.twin_ids = build_runtime(ss.twins, ss.policy, ss.seed)
+    ss.records = []
+    ss.step_id = 0
+    ss.correlation_id = f"run-{int(time.time())}"
+    ss.running = False
+    ss.last_step_ts = 0.0
+    ss.focus_twin = ss.twin_ids[0] if ss.twin_ids else None
+
+
+def step_once() -> None:
+    ss.step_id += 1
+    twin_id = ss.twin_ids[ss.step_id % len(ss.twin_ids)]
+    telemetry = ss.agents[twin_id].step()
+    twin_state = ss.core.update_from_telemetry(twin_id, telemetry)
+    action, record = ss.orch.step(twin_state, step_id=int(ss.step_id), correlation_id=str(ss.correlation_id))
+    ss.core.apply_action(twin_id, action)
+    ss.core.append_record(record)
+    ss.records.append(record.__dict__)
+
+
+def run_some_steps() -> None:
+    remaining = ss.target_steps - ss.step_id if ss.auto_stop else 10**12
+    if remaining <= 0:
+        ss.running = False
+        return
+
+    if ss.speed_mode == "Real-time":
+        step_once()
+    else:
+        n_steps = min(int(ss.batch_steps), int(remaining))
+        for _ in range(n_steps):
+            step_once()
+
+    if ss.auto_stop and ss.step_id >= ss.target_steps:
+        ss.running = False
+
+
+def apply_preset(name: str) -> None:
+    presets = {
+        "Balanced demo": {"twins": 6, "policy": "bandit", "target_steps": 180, "speed_mode": "Real-time", "interval_ms": 180},
+        "Fast operator view": {"twins": 8, "policy": "rule", "target_steps": 250, "speed_mode": "Max speed", "batch_steps": 40},
+        "Quantum stress": {"twins": 10, "policy": "bandit", "target_steps": 300, "speed_mode": "Real-time", "interval_ms": 120},
+    }
+    for key, value in presets[name].items():
+        ss[key] = value
+    reset_runtime()
+
+
+def trend_descriptor(current: float, previous: float, better: str = "up", fmt: str = ".1f", suffix: str = "") -> dict[str, str]:
+    delta = current - previous
+    ref = max(abs(previous), 1e-9)
+    tol = max(ref * 0.03, 1e-9)
+    if abs(delta) <= tol:
+        return {
+            "icon": "●",
+            "label": "Stable",
+            "css": "trend-flat",
+            "delta": f"{delta:{fmt}}{suffix}",
+        }
+
+    improving = (better == "up" and delta > 0) or (better == "down" and delta < 0)
+    return {
+        "icon": "▲" if improving else "▼",
+        "label": "Improving" if improving else "Worsening",
+        "css": "trend-up" if improving else "trend-down",
+        "delta": f"{delta:+{fmt}}{suffix}",
+    }
+
+
+def metric_trends(df: pd.DataFrame) -> dict[str, dict[str, str]]:
+    if len(df) < 8:
+        baseline = {"icon": "●", "label": "Collecting baseline", "css": "trend-flat", "delta": "—"}
+        return {
+            "quantum": baseline,
+            "fallback": baseline,
+            "latency": baseline,
+            "confidence": baseline,
+        }
+
+    window = max(4, min(16, len(df) // 3))
+    prev = df.iloc[-2 * window:-window] if len(df) >= 2 * window else df.iloc[:window]
+    recent = df.iloc[-window:]
+
+    quantum_prev = float((prev["route"] == "QUANTUM").mean())
+    quantum_recent = float((recent["route"] == "QUANTUM").mean())
+    fallback_prev = float((prev["route"] == "FALLBACK_CLASSICAL").mean())
+    fallback_recent = float((recent["route"] == "FALLBACK_CLASSICAL").mean())
+    latency_prev = float(prev["exec_ms"].mean())
+    latency_recent = float(recent["exec_ms"].mean())
+    conf_prev = float(prev["confidence"].mean())
+    conf_recent = float(recent["confidence"].mean())
+
+    return {
+        "quantum": trend_descriptor(quantum_recent, quantum_prev, better="up", fmt=".1%"),
+        "fallback": trend_descriptor(fallback_recent, fallback_prev, better="down", fmt=".1%"),
+        "latency": trend_descriptor(latency_recent, latency_prev, better="down", fmt=".0f", suffix=" ms"),
+        "confidence": trend_descriptor(conf_recent, conf_prev, better="up", fmt=".2f"),
+    }
+
+
+def kpi_card(label: str, value: str, icon: str, trend_label: str, css_class: str, sub: str) -> str:
+    return f"""
+    <div class="kpi-card">
+        <div class="kpi-label">{label}</div>
+        <div class="kpi-value">{value}</div>
+        <div class="kpi-trend {css_class}">{icon} {trend_label}</div>
+        <div class="kpi-sub">{sub}</div>
+    </div>
+    """
+
+
+def chart_card_header(title: str, copy: str = "") -> str:
+    return f"<div class='chart-shell'><div class='chart-title'>{title}</div><div class='chart-copy'>{copy}</div></div>"
+
+
+def _palette_colors() -> dict[str, str]:
+    return ACCENT_PALETTES.get(ss.accent_palette, ACCENT_PALETTES["Cobalt Mint"])
+
+
+def make_line_figure(df: pd.DataFrame, x: str, y: str, title: str, yaxis_title: str, color: str, fill: bool = False) -> go.Figure:
+    fig = go.Figure()
+    if not df.empty and y in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df[x],
+                y=df[y],
+                mode="lines+markers",
+                line={"color": color, "width": 3, "shape": "spline", "smoothing": 0.55},
+                marker={"size": 5, "color": color, "line": {"width": 0}},
+                fill="tozeroy" if fill else None,
+                fillcolor="rgba(105, 231, 213, 0.10)" if fill else None,
+                hovertemplate=f"Step %{{x}}<br>{title}: %{{y:.3f}}<extra></extra>",
+            )
+        )
+    fig.update_layout(
+        height=290,
+        margin={"l": 14, "r": 14, "t": 10, "b": 10},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(255,255,255,0.02)",
+        xaxis={
+            "title": "Step",
+            "showgrid": True,
+            "gridcolor": "rgba(170,190,220,0.10)",
+            "zeroline": False,
+            "tickfont": {"color": "#cfe1fb"},
+            "titlefont": {"color": "#9fb4d8"},
+        },
+        yaxis={
+            "title": yaxis_title,
+            "showgrid": True,
+            "gridcolor": "rgba(170,190,220,0.10)",
+            "zeroline": False,
+            "tickfont": {"color": "#cfe1fb"},
+            "titlefont": {"color": "#9fb4d8"},
+        },
+        showlegend=False,
+        font={"color": "#eaf2ff"},
+        hoverlabel={"bgcolor": "#0b1220", "font": {"color": "#f8fbff"}},
+    )
+    return fig
+
+
+def make_bar_figure(series: pd.Series, color: str, horizontal: bool = False, height: int = 290) -> go.Figure:
+    fig = go.Figure()
+    if series is not None and len(series) > 0:
+        if horizontal:
+            fig.add_trace(go.Bar(x=series.values, y=series.index.tolist(), orientation="h", marker_color=color, hovertemplate="%{y}: %{x}<extra></extra>"))
+        else:
+            fig.add_trace(go.Bar(x=series.index.tolist(), y=series.values, marker_color=color, hovertemplate="%{x}: %{y}<extra></extra>"))
+    fig.update_layout(
+        height=height,
+        margin={"l": 14, "r": 14, "t": 10, "b": 10},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(255,255,255,0.02)",
+        xaxis={"showgrid": True, "gridcolor": "rgba(170,190,220,0.10)", "zeroline": False, "tickfont": {"color": "#cfe1fb"}},
+        yaxis={"showgrid": False, "zeroline": False, "tickfont": {"color": "#cfe1fb"}},
+        showlegend=False,
+        font={"color": "#eaf2ff"},
+    )
+    return fig
+
+
+ss = st.session_state
+ss.setdefault("core", None)
+ss.setdefault("orch", None)
+ss.setdefault("agents", None)
+ss.setdefault("twin_ids", None)
+ss.setdefault("records", [])
+ss.setdefault("step_id", 0)
+ss.setdefault("running", False)
+ss.setdefault("speed_mode", "Real-time")
+ss.setdefault("interval_ms", 180)
+ss.setdefault("batch_steps", 25)
+ss.setdefault("policy", "bandit")
+ss.setdefault("twins", 5)
+ss.setdefault("seed", 42)
+ss.setdefault("correlation_id", None)
+ss.setdefault("target_steps", 500)
+ss.setdefault("auto_stop", True)
+ss.setdefault("ui_refresh_ms", 250)
+ss.setdefault("last_step_ts", 0.0)
+ss.setdefault("live_window", 60)
+ss.setdefault("visual_style", "Mission Control")
+ss.setdefault("accent_palette", "Cobalt Mint")
+ss.setdefault("focus_twin", None)
+
+st.markdown(build_theme_css(ss.visual_style, ss.accent_palette), unsafe_allow_html=True)
+
+if ss.core is None:
+    reset_runtime()
+
+if not ss.focus_twin and ss.twin_ids:
+    ss.focus_twin = ss.twin_ids[0]
+
+with st.sidebar:
+    st.markdown(
+        """
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-title">Hybrid Quantum-Classical Control Room</div>
+          <div class="sidebar-brand-text">Elegant demo shell for live hybrid orchestration, quantum routing visibility and stakeholder-facing auditability.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Demo presets</div><div class="sidebar-section-copy">Choose a ready-made execution mood before starting the run.</div></div>', unsafe_allow_html=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("Balanced demo", use_container_width=True):
+            apply_preset("Balanced demo")
+    with col_b:
+        if st.button("Fast operator view", use_container_width=True):
+            apply_preset("Fast operator view")
+    if st.button("Quantum stress", use_container_width=True):
+        apply_preset("Quantum stress")
+
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Visual identity</div><div class="sidebar-section-copy">Select a typography family and accent palette for the control-room presentation.</div></div>', unsafe_allow_html=True)
+    ss.visual_style = st.selectbox("Visual style", list(VISUAL_STYLES.keys()), index=list(VISUAL_STYLES.keys()).index(ss.visual_style))
+    ss.accent_palette = st.selectbox("Accent palette", list(ACCENT_PALETTES.keys()), index=list(ACCENT_PALETTES.keys()).index(ss.accent_palette))
+
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Runtime configuration</div><div class="sidebar-section-copy">Adjust orchestration scope, reproducibility and live observation window.</div></div>', unsafe_allow_html=True)
+    ss.twins = st.slider("Number of twins", 1, 20, int(ss.twins), help="Applied after Reset or Start.")
+    ss.policy = st.selectbox("Routing policy", ["rule", "bandit"], index=1 if ss.policy == "bandit" else 0)
+    ss.seed = st.number_input("Random seed", 1, 1_000_000, int(ss.seed))
+    ss.target_steps = st.number_input("Target steps", min_value=1, max_value=1_000_000, value=int(ss.target_steps), step=50)
+    ss.auto_stop = st.checkbox("Auto-stop at target steps", value=bool(ss.auto_stop))
+    ss.ui_refresh_ms = st.slider("Live refresh (ms)", 100, 2000, int(ss.ui_refresh_ms), step=50)
+    ss.live_window = st.slider("Live chart window (steps)", 20, 200, int(ss.live_window), step=10)
+
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Execution speed</div><div class="sidebar-section-copy">Use real-time for visible live evolution or max speed for dense runs.</div></div>', unsafe_allow_html=True)
+    ss.speed_mode = st.selectbox("Mode", ["Real-time", "Max speed"], index=0 if ss.speed_mode == "Real-time" else 1)
+    if ss.speed_mode == "Real-time":
+        ss.interval_ms = st.slider("Step interval (ms)", 100, 2500, int(ss.interval_ms), step=20)
+    else:
+        ss.batch_steps = st.slider("Steps per tick", 5, 500, int(ss.batch_steps), step=5)
+
+    focus_options = ss.twin_ids if ss.twin_ids else []
+    if focus_options:
+        if ss.focus_twin not in focus_options:
+            ss.focus_twin = focus_options[0]
+        ss.focus_twin = st.selectbox("Focus twin", focus_options, index=focus_options.index(ss.focus_twin))
+
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Controls</div><div class="sidebar-section-copy">Reset starts a fresh run. Step is useful for staged presentations.</div></div>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("▶ Start", use_container_width=True):
+            reset_runtime()
+            ss.focus_twin = ss.twin_ids[0] if ss.twin_ids else None
+            ss.running = True
+            ss.last_step_ts = 0.0
+    with c2:
+        if st.button("⏸ Pause", use_container_width=True):
+            ss.running = False
+
+    c3, c4 = st.columns(2)
+    with c3:
+        if st.button("⏭ Step", use_container_width=True):
+            ss.running = False
+            if ss.core is None:
+                reset_runtime()
+            step_once()
+    with c4:
+        if st.button("⏹ Reset", use_container_width=True):
+            reset_runtime()
+            ss.focus_twin = ss.twin_ids[0] if ss.twin_ids else None
+
+    st.markdown('<div class="sidebar-section"><div class="sidebar-section-title">Presentation note</div><div class="sidebar-section-copy">Balanced demo + Mission Control + Cobalt Mint is the most institutional combination.</div></div>', unsafe_allow_html=True)
+
+static_df = pd.DataFrame(ss.records)
+static_summary = compute_summary(static_df)
+static_routes = static_df["route"].value_counts() if not static_df.empty else pd.Series(dtype=int)
+st.markdown(hero_panel(static_summary, ss.running, ss.visual_style, ss.accent_palette, static_routes), unsafe_allow_html=True)
+st.markdown(architecture_panel(), unsafe_allow_html=True)
+st.markdown("<div class='section-note'>The live area below updates independently of the rest of the page, so the charts should evolve in place without full-screen blinking.</div>", unsafe_allow_html=True)
+
+status_slot = st.empty()
+progress_slot = st.empty()
+kpi_slot = st.empty()
+notice_slot = st.empty()
+charts_slot = st.empty()
+focus_slot = st.empty()
+
+
+def render_live_area() -> None:
+    if ss.running:
+        now = time.time()
+        last = ss.get("last_step_ts", 0.0)
+        if ss.speed_mode == "Real-time":
+            if (now - last) * 1000.0 >= float(ss.interval_ms):
+                run_some_steps()
+                ss.last_step_ts = time.time()
+        else:
+            run_some_steps()
+            ss.last_step_ts = time.time()
+
+    df = pd.DataFrame(ss.records)
+    summary = compute_summary(df)
+    trends = metric_trends(df) if not df.empty else None
+    progress = min(float(ss.step_id) / float(max(ss.target_steps, 1)), 1.0) if ss.auto_stop else 0.0
+    route_counts = df["route"].value_counts() if not df.empty else pd.Series(dtype=int)
+    fallback_counts = pd.Series(extract_reasons(df.get("fallback_reasons", pd.Series(dtype=object)))).value_counts() if not df.empty else pd.Series(dtype=int)
+
+    with status_slot.container():
+        left, right = st.columns([3, 1])
+        with left:
+            st.caption(f"Run ID: {ss.correlation_id} · Policy: {ss.policy} · Twins: {ss.twins} · Mode: {ss.speed_mode}")
+        with right:
+            live_state = "LIVE" if ss.running else "STATIC"
+            st.caption(f"{live_state} · refresh {int(ss.ui_refresh_ms)} ms · window {int(ss.live_window)}")
+
+    with progress_slot.container():
+        if ss.auto_stop:
+            st.progress(progress, text=f"Progress: {ss.step_id}/{ss.target_steps} steps")
+        else:
+            st.empty()
+
+    if not df.empty:
+        quantum_sub = f"Recent change: {trends['quantum']['delta']}"
+        fallback_sub = f"Recent change: {trends['fallback']['delta']}"
+        latency_sub = f"Recent change: {trends['latency']['delta']}"
+        confidence_sub = f"Recent change: {trends['confidence']['delta']}"
+    else:
+        quantum_sub = fallback_sub = latency_sub = confidence_sub = "Waiting for live data"
+
+    steps_css = "trend-live" if ss.running else ("trend-pause" if ss.step_id > 0 else "trend-idle")
+    steps_icon = "◉" if ss.running else ("⏸" if ss.step_id > 0 else "○")
+    steps_label = "Live evolution" if ss.running else ("Paused" if ss.step_id > 0 else "Ready")
+    steps_sub = f"{ss.speed_mode} · refresh {int(ss.ui_refresh_ms)} ms"
+
+    with kpi_slot.container():
+        k1, k2, k3, k4, k5 = st.columns(5)
+        with k1:
+            st.markdown(kpi_card("Steps", f"{ss.step_id} / {ss.target_steps}" if ss.auto_stop else str(ss.step_id), steps_icon, steps_label, steps_css, steps_sub), unsafe_allow_html=True)
+        with k2:
+            if not df.empty:
+                t = trends["quantum"]
+                st.markdown(kpi_card("Quantum share", f"{summary['quantum_share']:.1%}", t["icon"], t["label"], t["css"], quantum_sub), unsafe_allow_html=True)
+            else:
+                st.markdown(kpi_card("Quantum share", "0.0%", "●", "Collecting baseline", "trend-flat", quantum_sub), unsafe_allow_html=True)
+        with k3:
+            if not df.empty:
+                t = trends["fallback"]
+                st.markdown(kpi_card("Fallback rate", f"{summary['fallback_share']:.1%}", t["icon"], t["label"], t["css"], fallback_sub), unsafe_allow_html=True)
+            else:
+                st.markdown(kpi_card("Fallback rate", "0.0%", "●", "Collecting baseline", "trend-flat", fallback_sub), unsafe_allow_html=True)
+        with k4:
+            if not df.empty:
+                t = trends["latency"]
+                st.markdown(kpi_card("Avg latency", f"{summary['avg_latency']:.0f} ms", t["icon"], t["label"], t["css"], latency_sub), unsafe_allow_html=True)
+            else:
+                st.markdown(kpi_card("Avg latency", "0 ms", "●", "Collecting baseline", "trend-flat", latency_sub), unsafe_allow_html=True)
+        with k5:
+            if not df.empty:
+                t = trends["confidence"]
+                st.markdown(kpi_card("Mean confidence", f"{summary['mean_confidence']:.2f}", t["icon"], t["label"], t["css"], confidence_sub), unsafe_allow_html=True)
+            else:
+                st.markdown(kpi_card("Mean confidence", "0.00", "●", "Collecting baseline", "trend-flat", confidence_sub), unsafe_allow_html=True)
+
+    with notice_slot.container():
+        if df.empty:
+            st.info("Ready to run. Choose a preset or press Start/Step from the sidebar.")
+        elif summary["fallback_share"] > 0.35:
+            st.warning("Fallback rate is elevated. This is useful for demoing governance, but it may indicate aggressive quantum routing or queue pressure.")
+        elif summary["quantum_share"] > 0.45:
+            st.success("Quantum routing is active across a significant share of steps, which makes this run well suited for showcasing hybrid orchestration.")
+        else:
+            st.info("This run is currently conservative. Switch to a more aggressive preset if you want more visible quantum activity.")
+
+    with charts_slot.container():
+        st.subheader("Live evolution")
+        st.markdown("<div class='info-panel'><div class='info-title'>Streaming view</div><div class='info-body'>The chart area below is laid out as a monitoring grid with professional line and bar visuals, while the rest of the interface remains stable during live execution.</div></div>", unsafe_allow_html=True)
+        plot_df = df.copy()
+        if plot_df.empty:
+            plot_df = pd.DataFrame({"step": [], "objective_value": [], "exec_ms": []})
+        else:
+            plot_df["step"] = range(1, len(plot_df) + 1)
+        live_df = plot_df.tail(int(ss.live_window)).copy() if not plot_df.empty else plot_df
+        palette = _palette_colors()
+
+        top_left, top_right = st.columns(2)
+        with top_left:
+            st.markdown(chart_card_header("Objective trajectory", "Hybrid objective trend across the current live window."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(live_df, "step", "objective_value", "Objective", "Objective value", palette["primary"], fill=True), use_container_width=True, config={"displayModeBar": False}, key=f"obj_plot_{ss.step_id}")
+        with top_right:
+            st.markdown(chart_card_header("Latency profile", "Execution latency per step with a smoother live view."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(live_df, "step", "exec_ms", "Latency", "Latency (ms)", palette["secondary"], fill=False), use_container_width=True, config={"displayModeBar": False}, key=f"lat_plot_{ss.step_id}")
+
+        mid_left, mid_right = st.columns([1.05, 0.95])
+        with mid_left:
+            st.markdown(chart_card_header("Routing distribution", "Current share of classical, fallback and quantum decisions."), unsafe_allow_html=True)
+            st.plotly_chart(make_bar_figure(route_counts, palette["primary"], horizontal=False, height=260), use_container_width=True, config={"displayModeBar": False}, key=f"route_plot_{ss.step_id}")
+        with mid_right:
+            st.markdown(chart_card_header("Fallback reasons", "Most frequent governance triggers observed so far."), unsafe_allow_html=True)
+            st.plotly_chart(make_bar_figure(fallback_counts.head(8), palette["secondary"], horizontal=True, height=260), use_container_width=True, config={"displayModeBar": False}, key=f"fallback_plot_{ss.step_id}")
+
+        lower_left, lower_right = st.columns([1.15, 0.85])
+        with lower_left:
+            st.markdown(chart_card_header("Operational twin snapshot", "Instantaneous state of all active twins."), unsafe_allow_html=True)
+            twin_snapshot = get_twin_snapshot(ss.core)
+            st.dataframe(twin_snapshot, use_container_width=True, hide_index=True, height=255)
+        with lower_right:
+            st.markdown(chart_card_header("Recent events", "Latest routing decisions and SLA outcomes."), unsafe_allow_html=True)
+            recent_events = df[["step_id", "twin_id", "route", "exec_ms", "latency_breach"]].tail(10).copy() if not df.empty else pd.DataFrame(columns=["step_id", "twin_id", "route", "exec_ms", "latency_breach"])
+            st.dataframe(recent_events, use_container_width=True, hide_index=True, height=255)
+
+    with focus_slot.container():
+        st.subheader("Focused twin")
+        focus_twin = ss.focus_twin if ss.focus_twin in ss.core.registry else next(iter(ss.core.registry.keys()))
+        twin_state = ss.core.registry[focus_twin]
+        twin_df = df[df["twin_id"] == focus_twin].copy() if not df.empty else pd.DataFrame()
+        if not twin_df.empty:
+            twin_df["step"] = range(1, len(twin_df) + 1)
+            twin_live_df = twin_df.tail(int(min(ss.live_window, max(len(twin_df), 1))))
+        else:
+            twin_live_df = pd.DataFrame({"step": [], "objective_value": [], "exec_ms": []})
+
+        upper_left, upper_right = st.columns([1.3, 0.7])
+        with upper_left:
+            st.markdown(chart_card_header(f"{focus_twin} · objective", "Per-twin objective evolution within the selected live window."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(twin_live_df, "step", "objective_value", "Twin objective", "Objective value", palette["primary"], fill=True), use_container_width=True, config={"displayModeBar": False}, key=f"twin_obj_{focus_twin}_{ss.step_id}")
+        with upper_right:
+            twin_state_df = pd.DataFrame(
+                [
+                    {"field": "twin_id", "value": focus_twin},
+                    {"field": "health", "value": round(float(twin_state.health), 4)},
+                    {"field": "x1", "value": round(float(twin_state.x1), 4)},
+                    {"field": "x2", "value": round(float(twin_state.x2), 4)},
+                    {"field": "x3", "value": round(float(twin_state.x3), 4)},
+                    {"field": "last_mode", "value": twin_state.last_action.get("mode", "-")},
+                    {"field": "last_damp", "value": round(float(twin_state.last_action.get("damp", 0.0)), 4)},
+                    {"field": "timestamp", "value": twin_state.ts},
+                ]
+            )
+            st.markdown(chart_card_header("Twin state", "Live state vector and latest applied action."), unsafe_allow_html=True)
+            st.dataframe(twin_state_df, use_container_width=True, hide_index=True, height=335)
+
+        lower_focus_left, lower_focus_right = st.columns(2)
+        with lower_focus_left:
+            st.markdown(chart_card_header(f"{focus_twin} · latency", "Execution latency history for the selected twin."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(twin_live_df, "step", "exec_ms", "Twin latency", "Latency (ms)", palette["secondary"], fill=False), use_container_width=True, config={"displayModeBar": False}, key=f"twin_lat_{focus_twin}_{ss.step_id}")
+        with lower_focus_right:
+            st.markdown(chart_card_header(f"{focus_twin} · routing mix", "Distribution of routes for the selected twin."), unsafe_allow_html=True)
+            st.plotly_chart(make_bar_figure(twin_df["route"].value_counts() if not twin_df.empty else pd.Series(dtype=int), palette["primary"], horizontal=False, height=290), use_container_width=True, config={"displayModeBar": False}, key=f"twin_route_{focus_twin}_{ss.step_id}")
+
+
+
+_fragment = getattr(st, "fragment", None)
+if _fragment is None:
+    _fragment = getattr(st, "experimental_fragment", None)
+
+run_every = float(ss.ui_refresh_ms) / 1000.0 if ss.running else None
+
+if _fragment is not None:
+    @_fragment(run_every=run_every)
+    def live_dashboard_fragment() -> None:
+        render_live_area()
+else:
+    def live_dashboard_fragment() -> None:
+        render_live_area()
+
+live_dashboard_fragment()
+
+st.subheader("Audit and exports")
+current_df = pd.DataFrame(ss.records)
+current_summary = compute_summary(current_df)
+with st.expander("Audit log and downloads", expanded=False):
+    if current_df.empty:
+        st.caption("No audit data yet.")
+    else:
+        audit_cols = ["step_id", "ts", "twin_id", "route", "exec_ms", "qpu_queue_ms", "noise_proxy", "cost_eur", "latency_breach"]
+        st.dataframe(current_df[audit_cols].tail(50), use_container_width=True, height=260, hide_index=True)
+        export_left, export_right, export_third = st.columns(3)
+        with export_left:
+            csv_bytes = current_df.to_csv(index=False).encode("utf-8")
+            st.download_button("Download CSV", data=csv_bytes, file_name="hybrid_control_room_run.csv", mime="text/csv", use_container_width=True, key="dl_csv")
+        with export_right:
+            json_bytes = current_df.to_json(orient="records", indent=2).encode("utf-8")
+            st.download_button("Download JSON", data=json_bytes, file_name="hybrid_control_room_run.json", mime="application/json", use_container_width=True, key="dl_json")
+        with export_third:
+            report = make_markdown_report(current_df, current_summary, str(ss.correlation_id), int(ss.twins), str(ss.policy)).encode("utf-8")
+            st.download_button("Download Markdown summary", data=report, file_name="hybrid_control_room_summary.md", mime="text/markdown", use_container_width=True, key="dl_md")
