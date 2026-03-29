@@ -24,110 +24,158 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.markdown(
-    """
+VISUAL_STYLES = {
+    "Mission Control": {
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Exo 2', sans-serif",
+        "body_font": "'Inter', sans-serif",
+        "mono_font": "'JetBrains Mono', monospace",
+        "title_letter_spacing": "0.015em",
+    },
+    "Cyber Minimal": {
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Space Grotesk', sans-serif",
+        "body_font": "'Inter', sans-serif",
+        "mono_font": "'JetBrains Mono', monospace",
+        "title_letter_spacing": "0.01em",
+    },
+    "Research Console": {
+        "font_import": "@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');",
+        "heading_font": "'Oxanium', sans-serif",
+        "body_font": "'Inter', sans-serif",
+        "mono_font": "'JetBrains Mono', monospace",
+        "title_letter_spacing": "0.02em",
+    },
+}
+
+
+def build_theme_css(style_name: str) -> str:
+    style = VISUAL_STYLES.get(style_name, VISUAL_STYLES["Mission Control"])
+    return f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&display=swap');
+    {style['font_import']}
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Rajdhani', sans-serif;
-    }
+    html, body, [class*="css"] {{
+        font-family: {style['body_font']};
+        color: #edf4ff !important;
+    }}
 
-    .stApp {
+    p, li, div, label, span, small, .stMarkdown, .stCaption {{
+        color: #eaf2ff !important;
+    }}
+
+    .stApp {{
         background:
-            radial-gradient(circle at top right, rgba(53, 89, 186, 0.18), transparent 30%),
-            radial-gradient(circle at top left, rgba(0, 255, 214, 0.08), transparent 24%),
-            linear-gradient(180deg, #030711 0%, #07111f 45%, #030711 100%);
-    }
+            radial-gradient(circle at top right, rgba(67, 97, 238, 0.20), transparent 28%),
+            radial-gradient(circle at top left, rgba(19, 214, 201, 0.10), transparent 24%),
+            linear-gradient(180deg, #030711 0%, #07101b 48%, #040913 100%);
+    }}
 
-    .block-container {
+    .block-container {{
         padding-top: 1.05rem;
         padding-bottom: 1.6rem;
         max-width: 1500px;
-    }
+    }}
 
-    h1, h2, h3, .tech-title, .kpi-label {
-        font-family: 'Orbitron', sans-serif !important;
-        letter-spacing: 0.02em;
-    }
+    h1, h2, h3, .tech-title, .kpi-label {{
+        font-family: {style['heading_font']} !important;
+        letter-spacing: {style['title_letter_spacing']};
+        color: #f7fbff !important;
+    }}
 
-    .hero-card {
+    .hero-card {{
         padding: 1.1rem 1.25rem;
-        border: 1px solid rgba(98, 116, 151, 0.36);
+        border: 1px solid rgba(122, 146, 190, 0.34);
         border-radius: 1rem;
-        background: linear-gradient(180deg, rgba(17, 28, 46, 0.92) 0%, rgba(8, 16, 28, 0.92) 100%);
+        background: linear-gradient(180deg, rgba(15, 24, 40, 0.96) 0%, rgba(7, 13, 23, 0.96) 100%);
         box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.08), 0 10px 30px rgba(0, 0, 0, 0.24);
         margin-bottom: 0.85rem;
-    }
+    }}
 
-    .hero-note {
-        font-size: 1.05rem;
-        opacity: 0.95;
-        line-height: 1.35;
-    }
+    .hero-note {{
+        font-size: 1.03rem;
+        line-height: 1.4;
+        color: #f2f7ff !important;
+    }}
 
-    .kpi-card {
-        border: 1px solid rgba(90, 110, 144, 0.32);
+    .kpi-card {{
+        border: 1px solid rgba(95, 117, 162, 0.34);
         border-radius: 1rem;
         padding: 0.95rem 1rem 0.85rem 1rem;
         min-height: 132px;
-        background: linear-gradient(180deg, rgba(17, 24, 39, 0.95), rgba(8, 15, 28, 0.95));
-        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.05), 0 8px 24px rgba(0,0,0,0.18);
-    }
+        background: linear-gradient(180deg, rgba(15, 22, 35, 0.97), rgba(7, 14, 25, 0.97));
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.05), 0 8px 24px rgba(0,0,0,0.20);
+    }}
 
-    .kpi-label {
-        color: #92a8cf;
-        font-size: 0.83rem;
+    .kpi-label {{
+        color: #c6d8f7 !important;
+        font-size: 0.80rem;
         text-transform: uppercase;
-        margin-bottom: 0.25rem;
-    }
+        margin-bottom: 0.28rem;
+    }}
 
-    .kpi-value {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 1.58rem;
+    .kpi-value {{
+        font-family: {style['heading_font']};
+        font-size: 1.55rem;
         font-weight: 700;
-        line-height: 1.1;
-        color: #f2f7ff;
-        margin-bottom: 0.4rem;
-    }
+        line-height: 1.08;
+        color: #ffffff !important;
+        margin-bottom: 0.42rem;
+    }}
 
-    .kpi-trend {
+    .kpi-trend {{
         font-size: 0.98rem;
         font-weight: 600;
         display: flex;
         align-items: center;
         gap: 0.35rem;
-        color: #cad8f2;
-    }
+        color: #dbe8ff !important;
+    }}
 
-    .kpi-sub {
+    .kpi-sub {{
         font-size: 0.92rem;
-        color: #8fa4c9;
+        color: #c7d6ef !important;
         margin-top: 0.35rem;
-    }
+    }}
 
-    .trend-up { color: #38e07b; }
-    .trend-down { color: #ff667d; }
-    .trend-flat { color: #f6c357; }
-    .trend-live { color: #54f1d0; }
-    .trend-pause { color: #f6c357; }
-    .trend-idle { color: #90a4c7; }
-
-    .section-note {
-        opacity: 0.82;
+    .section-note {{
+        color: #d7e6ff !important;
+        opacity: 0.92;
         margin-top: -0.35rem;
         margin-bottom: 0.5rem;
-    }
+    }}
 
-    div[data-testid="stMetric"] {
+    .stTabs [data-baseweb="tab"] {{
+        color: #eaf2ff !important;
+    }}
+
+    .stSlider label, .stSelectbox label, .stNumberInput label, .stCheckbox label {{
+        color: #edf4ff !important;
+    }}
+
+    .stDataFrame, .stTable {{
+        color: #edf4ff !important;
+    }}
+
+    .stCodeBlock, code, pre {{
+        font-family: {style['mono_font']} !important;
+    }}
+
+    .trend-up {{ color: #43f08f !important; }}
+    .trend-down {{ color: #ff7a92 !important; }}
+    .trend-flat {{ color: #ffd166 !important; }}
+    .trend-live {{ color: #58f0d2 !important; }}
+    .trend-pause {{ color: #ffd166 !important; }}
+    .trend-idle {{ color: #afc3e8 !important; }}
+
+    div[data-testid="stMetric"] {{
         background: transparent;
         border: none;
         padding: 0;
-    }
+    }}
     </style>
-    """,
-    unsafe_allow_html=True,
-)
+    """
 
 
 # -----------------------------------------------------------------------------
@@ -394,6 +442,9 @@ ss.setdefault("auto_stop", True)
 ss.setdefault("ui_refresh_ms", 90)
 ss.setdefault("last_step_ts", 0.0)
 ss.setdefault("live_window", 60)
+ss.setdefault("visual_style", "Mission Control")
+
+st.markdown(build_theme_css(ss.visual_style), unsafe_allow_html=True)
 
 if ss.core is None:
     reset_runtime()
@@ -421,6 +472,7 @@ with st.sidebar:
 
     st.divider()
     st.markdown("## Runtime configuration")
+    ss.visual_style = st.selectbox("Visual style", list(VISUAL_STYLES.keys()), index=list(VISUAL_STYLES.keys()).index(ss.visual_style))
     ss.twins = st.slider("Number of twins", 1, 20, int(ss.twins), help="Applied after Reset or Start.")
     ss.policy = st.selectbox("Routing policy", ["rule", "bandit"], index=1 if ss.policy == "bandit" else 0)
     ss.seed = st.number_input("Random seed", 1, 1_000_000, int(ss.seed))
@@ -512,7 +564,7 @@ with headline_left:
         f"Run ID: {ss.correlation_id} · Policy: {ss.policy} · Twins: {ss.twins} · Mode: {ss.speed_mode}"
     )
 with headline_right:
-    st.caption("Public demo view · dark theme · live updates")
+    st.caption(f"Public demo view · dark theme · {ss.visual_style}")
 
 if ss.auto_stop:
     st.progress(progress, text=f"Progress: {ss.step_id}/{ss.target_steps} steps")
