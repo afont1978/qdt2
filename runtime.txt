@@ -80,3 +80,10 @@ The repository uses direct imports from `src/q_infratwin` instead of loading the
 ## Visual identity
 
 This public demo includes multiple typography styles, refined accent palettes, a dark main dashboard, a light control sidebar, and a system-architecture cover block designed for stakeholder presentations.
+
+
+## Deployment note for Streamlit Community Cloud
+
+If your app was originally deployed with a newer Python version, changing `runtime.txt` is not enough to switch it. In Streamlit Community Cloud, you must delete the app and redeploy it, choosing Python 3.11 in **Advanced settings**.
+
+This app only requires `numpy`, `pandas`, `plotly`, and `streamlit`. `matplotlib` was removed from `requirements.txt` to make installation lighter and more robust.
