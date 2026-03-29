@@ -1,17 +1,19 @@
 # Q-InfraTwin Web App
 
-Repositorio preparado para GitHub y despliegue web de un prototipo **Quantum Digital Twin** basado en Streamlit.
+Public-facing web demo for a **Quantum Digital Twin** prototype built with Streamlit and a modular hybrid quantum-classical engine.
 
-## Qué incluye
+## What changed in this polished version
 
-- `app.py`: dashboard web listo para despliegue.
-- `src/q_infratwin/engine.py`: motor híbrido cuántico-clásico modularizado.
-- `requirements.txt`: dependencias mínimas.
-- `Dockerfile`: despliegue contenedorizado.
-- `.streamlit/config.toml`: configuración básica de Streamlit.
-- `.gitignore`: exclusiones estándar para Python.
+This version is prepared for a more professional public demo. It adds:
 
-## Estructura
+- a cleaner control-room presentation,
+- preset demo scenarios,
+- exportable run summaries,
+- clearer overview, drill-down and audit tabs,
+- twin state snapshots for stakeholder demos,
+- deployment-ready structure for GitHub, Streamlit Cloud and Docker-based platforms.
+
+## Repository structure
 
 ```text
 q-infratwin-webapp/
@@ -19,6 +21,7 @@ q-infratwin-webapp/
 ├── requirements.txt
 ├── runtime.txt
 ├── Dockerfile
+├── render.yaml
 ├── .gitignore
 ├── .streamlit/
 │   └── config.toml
@@ -28,45 +31,47 @@ q-infratwin-webapp/
         └── engine.py
 ```
 
-## Ejecución local
+## Local run
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # en Windows: .venv\Scripts\activate
+# Windows
+.venv\Scripts\activate
+# Linux / macOS
+# source .venv/bin/activate
+
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-## Despliegue recomendado
+## Recommended deployment
 
-### Opción 1: Streamlit Community Cloud
-1. Sube este repo a GitHub.
-2. En Streamlit Cloud, conecta el repositorio.
-3. Selecciona `app.py` como archivo principal.
-4. Despliega.
+### Streamlit Community Cloud
 
-### Opción 2: Render / Railway / cualquier plataforma con Docker
-Usa el `Dockerfile` incluido.
+1. Push this repository to GitHub.
+2. Create a new app in Streamlit Community Cloud.
+3. Select the repository, branch `main`, and file `app.py`.
+4. Use Python 3.11.
+5. Deploy.
+
+### Docker / Render / Railway
+
+The repository includes a `Dockerfile` and a simple `render.yaml` so the same app can be deployed outside Streamlit Cloud with minimal changes.
 
 ```bash
 docker build -t q-infratwin-webapp .
 docker run -p 8501:8501 q-infratwin-webapp
 ```
 
-## Nota técnica
+## Core technical note
 
-Este repo reemplaza la carga dinámica del motor por fichero con `exec()` por imports directos desde `src/q_infratwin`, lo que simplifica mantenimiento, versionado y despliegue.
+The repository uses direct imports from `src/q_infratwin` instead of loading the engine dynamically with `exec()`. This makes the project easier to version, test, maintain and deploy.
 
-## GitHub
+## Suggested public demo flow
 
-Una vez creado tu repositorio vacío en GitHub:
-
-```bash
-git init
-git add .
-git commit -m "Initial commit: Q-InfraTwin web app"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
-git push -u origin main
-```
+1. Start with **Balanced demo**.
+2. Show objective, latency and routing behaviour in **Overview**.
+3. Open **Twin drill-down** to inspect a single twin.
+4. Open **Audit inspector** to show the quantum request and result envelopes.
+5. Export the markdown run summary for reporting.

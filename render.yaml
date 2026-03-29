@@ -1,0 +1,5 @@
+services:
+  - type: web
+    name: q-infratwin-webapp
+    env: docker
+    plan: free
