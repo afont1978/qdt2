@@ -6,7 +6,9 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 from src.q_infratwin.engine import (
     ClassicalSolver,
@@ -369,6 +371,33 @@ def build_theme_css(style_name: str, palette_name: str) -> str:
         color: #dce8fb !important;
         line-height: 1.55;
         font-size: 0.92rem;
+    }}
+
+    .panel-intro {{
+        margin-bottom: 0.5rem;
+    }}
+
+    .panel-kicker {{
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        color: var(--primary) !important;
+        margin-bottom: 0.18rem;
+    }}
+
+    .panel-title {{
+        font-family: {style['heading_font']};
+        font-size: 1.02rem;
+        letter-spacing: 0.05em;
+        color: #f7fbff !important;
+        margin-bottom: 0.18rem;
+    }}
+
+    .panel-subtitle {{
+        font-size: 0.88rem;
+        line-height: 1.45;
+        color: #c7d6ef !important;
+        margin-bottom: 0.55rem;
     }}
 
     .stTabs [data-baseweb="tab-list"] {{
@@ -794,6 +823,169 @@ def kpi_card(label: str, value: str, icon: str, trend_label: str, css_class: str
     """
 
 
+def panel_intro(kicker: str, title: str, subtitle: str) -> str:
+    return f"""
+    <div class="panel-intro">
+        <div class="panel-kicker">{kicker}</div>
+        <div class="panel-title">{title}</div>
+        <div class="panel-subtitle">{subtitle}</div>
+    </div>
+    """
+
+
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) != 6:
+        return f"rgba(255,255,255,{alpha})"
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def chart_tokens(palette_name: str) -> dict[str, str]:
+    palette = ACCENT_PALETTES.get(palette_name, ACCENT_PALETTES["Cobalt Mint"])
+    return {
+        "primary": palette["primary"],
+        "secondary": palette["secondary"],
+        "muted": palette["muted"],
+        "grid": "rgba(193, 214, 255, 0.10)",
+        "panel": "rgba(10, 15, 25, 0.62)",
+        "danger": "#ff7a92",
+        "warning": "#ffd166",
+        "success": "#43f08f",
+        "text": "#edf4ff",
+        "fill_primary": hex_to_rgba(palette["primary"], 0.16),
+        "fill_secondary": hex_to_rgba(palette["secondary"], 0.12),
+    }
+
+
+def apply_plotly_layout(fig: go.Figure, palette_name: str, height: int, show_legend: bool = False) -> go.Figure:
+    tokens = chart_tokens(palette_name)
+    fig.update_layout(
+        height=height,
+        margin=dict(l=18, r=18, t=16, b=12),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor=tokens["panel"],
+        font=dict(color=tokens["text"], family="Inter, sans-serif", size=12),
+        showlegend=show_legend,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1.0),
+        hovermode="x unified",
+    )
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor=tokens["grid"],
+        zeroline=False,
+        linecolor=tokens["grid"],
+        tickfont=dict(color=tokens["muted"]),
+        title=None,
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor=tokens["grid"],
+        zeroline=False,
+        linecolor=tokens["grid"],
+        tickfont=dict(color=tokens["muted"]),
+        title=None,
+    )
+    return fig
+
+
+def build_system_performance_figure(df: pd.DataFrame, palette_name: str, window: int) -> go.Figure:
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08)
+    tokens = chart_tokens(palette_name)
+    if df.empty:
+        fig.add_annotation(text="Waiting for live data", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False, font=dict(color=tokens["muted"], size=15))
+        return apply_plotly_layout(fig, palette_name, 410)
+
+    plot_df = df.copy()
+    plot_df["step"] = range(1, len(plot_df) + 1)
+    live_df = plot_df.tail(int(window)).copy()
+    live_df["latency_ma"] = live_df["exec_ms"].rolling(5, min_periods=1).mean()
+
+    fig.add_trace(
+        go.Scatter(
+            x=live_df["step"], y=live_df["objective_value"], mode="lines",
+            line=dict(color=tokens["primary"], width=3),
+            fill="tozeroy", fillcolor=tokens["fill_primary"],
+            name="Objective value",
+        ), row=1, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=live_df["step"], y=live_df["exec_ms"], mode="lines",
+            line=dict(color=tokens["secondary"], width=2.5),
+            name="Latency",
+        ), row=2, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=live_df["step"], y=live_df["latency_ma"], mode="lines",
+            line=dict(color=tokens["warning"], width=2, dash="dot"),
+            name="Latency MA(5)",
+        ), row=2, col=1,
+    )
+    fig.update_yaxes(title_text="Objective", row=1, col=1)
+    fig.update_yaxes(title_text="ms", row=2, col=1)
+    fig.update_xaxes(title_text="Step", row=2, col=1)
+    return apply_plotly_layout(fig, palette_name, 410, show_legend=True)
+
+
+def build_donut_figure(values: pd.Series, palette_name: str, title: str) -> go.Figure:
+    tokens = chart_tokens(palette_name)
+    fig = go.Figure()
+    if values.empty:
+        fig.add_annotation(text=f"No {title.lower()} yet", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False, font=dict(color=tokens["muted"], size=14))
+        return apply_plotly_layout(fig, palette_name, 240)
+    colors = [tokens["primary"], tokens["secondary"], tokens["warning"], tokens["danger"], tokens["success"]]
+    fig.add_trace(go.Pie(labels=list(values.index), values=list(values.values), hole=0.58, marker=dict(colors=colors[:len(values)]), textinfo="percent", hovertemplate="%{label}: %{value} (%{percent})<extra></extra>"))
+    fig.update_layout(showlegend=True, legend=dict(orientation="v", x=1.02, y=0.5))
+    return apply_plotly_layout(fig, palette_name, 240, show_legend=True)
+
+
+def build_reason_bar_figure(values: pd.Series, palette_name: str) -> go.Figure:
+    tokens = chart_tokens(palette_name)
+    fig = go.Figure()
+    if values.empty:
+        fig.add_annotation(text="No fallback reasons recorded", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False, font=dict(color=tokens["muted"], size=14))
+        return apply_plotly_layout(fig, palette_name, 240)
+    plot_values = values.sort_values(ascending=True).tail(8)
+    fig.add_trace(go.Bar(x=plot_values.values, y=plot_values.index, orientation="h", marker=dict(color=tokens["secondary"]), hovertemplate="%{y}: %{x}<extra></extra>"))
+    fig.update_xaxes(title_text="Count")
+    return apply_plotly_layout(fig, palette_name, 240)
+
+
+def build_twin_focus_figure(twin_df: pd.DataFrame, palette_name: str, window: int) -> go.Figure:
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08)
+    tokens = chart_tokens(palette_name)
+    if twin_df.empty:
+        fig.add_annotation(text="Twin has no activity yet", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False, font=dict(color=tokens["muted"], size=15))
+        return apply_plotly_layout(fig, palette_name, 360)
+    plot_df = twin_df.copy()
+    if "step" not in plot_df.columns:
+        plot_df["step"] = range(1, len(plot_df) + 1)
+    live_df = plot_df.tail(int(window)).copy()
+    fig.add_trace(go.Scatter(x=live_df["step"], y=live_df["objective_value"], mode="lines+markers", line=dict(color=tokens["primary"], width=2.8), marker=dict(size=6), name="Twin objective"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=live_df["step"], y=live_df["exec_ms"], mode="lines+markers", line=dict(color=tokens["secondary"], width=2.2), marker=dict(size=5), name="Twin latency"), row=2, col=1)
+    fig.update_yaxes(title_text="Objective", row=1, col=1)
+    fig.update_yaxes(title_text="ms", row=2, col=1)
+    fig.update_xaxes(title_text="Step", row=2, col=1)
+    return apply_plotly_layout(fig, palette_name, 360, show_legend=False)
+
+
+def build_health_figure(snapshot_df: pd.DataFrame, palette_name: str) -> go.Figure:
+    tokens = chart_tokens(palette_name)
+    fig = go.Figure()
+    if snapshot_df.empty:
+        fig.add_annotation(text="No twins registered", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False, font=dict(color=tokens["muted"], size=14))
+        return apply_plotly_layout(fig, palette_name, 360)
+    plot_df = snapshot_df.sort_values("health", ascending=True)
+    colors = [tokens["danger"] if h < 0.35 else tokens["warning"] if h < 0.65 else tokens["success"] for h in plot_df["health"]]
+    fig.add_trace(go.Bar(x=plot_df["health"], y=plot_df["twin_id"], orientation="h", marker=dict(color=colors), hovertemplate="%{y}: %{x:.3f}<extra></extra>"))
+    fig.update_xaxes(title_text="Health score", range=[0, 1])
+    return apply_plotly_layout(fig, palette_name, 360)
+
+
 ss = st.session_state
 ss.setdefault("core", None)
 ss.setdefault("orch", None)
@@ -1000,68 +1192,74 @@ def render_live_area() -> None:
             st.info("This run is currently conservative. Switch to a more aggressive preset if you want more visible quantum activity.")
 
     with charts_slot.container():
-        st.subheader("Live evolution")
-        st.markdown("<div class='info-panel'><div class='info-title'>Streaming view</div><div class='info-body'>These charts are updated inside stable placeholders, so only the live data region redraws while the rest of the page stays fixed.</div></div>", unsafe_allow_html=True)
-        plot_df = df.copy()
-        if plot_df.empty:
-            plot_df = pd.DataFrame({"step": [], "objective_value": [], "exec_ms": []})
-        else:
-            plot_df["step"] = range(1, len(plot_df) + 1)
-        live_df = plot_df.tail(int(ss.live_window)).copy() if not plot_df.empty else plot_df
+        st.markdown(panel_intro("Live monitoring", "System performance overview", "A more executive visual layout: one primary performance timeline, one governance column, and one operational layer for fleet status and event review."), unsafe_allow_html=True)
 
-        live_left, live_right = st.columns([2, 1])
-        with live_left:
-            st.line_chart(live_df.set_index("step")[["objective_value"]] if not live_df.empty else pd.DataFrame(columns=["objective_value"]), height=260)
-            st.line_chart(live_df.set_index("step")[["exec_ms"]] if not live_df.empty else pd.DataFrame(columns=["exec_ms"]), height=260)
-        with live_right:
-            st.subheader("Routing distribution")
-            st.bar_chart(route_counts if not route_counts.empty else pd.Series(dtype=int))
-            st.subheader("Fallback reasons")
-            if not fallback_counts.empty:
-                st.bar_chart(fallback_counts.head(10))
-            else:
-                st.caption("No fallback reasons recorded.")
+        perf_left, perf_right = st.columns([1.7, 1], gap="large")
+        with perf_left:
+            st.plotly_chart(
+                build_system_performance_figure(df, ss.accent_palette, int(ss.live_window)),
+                use_container_width=True,
+                config={"displayModeBar": False, "responsive": True},
+            )
+        with perf_right:
+            st.markdown(panel_intro("Routing", "Decision mix", "Current composition of classical, quantum and governed fallback routes."), unsafe_allow_html=True)
+            st.plotly_chart(
+                build_donut_figure(route_counts, ss.accent_palette, "Routes"),
+                use_container_width=True,
+                config={"displayModeBar": False, "responsive": True},
+            )
+            st.markdown(panel_intro("Governance", "Fallback reasons", "Highest-frequency causes behind governed fallback decisions."), unsafe_allow_html=True)
+            st.plotly_chart(
+                build_reason_bar_figure(fallback_counts, ss.accent_palette),
+                use_container_width=True,
+                config={"displayModeBar": False, "responsive": True},
+            )
 
-        lower_left, lower_right = st.columns([1.2, 1])
-        with lower_left:
-            st.subheader("Operational twin snapshot")
-            twin_snapshot = get_twin_snapshot(ss.core)
-            st.dataframe(twin_snapshot, use_container_width=True, hide_index=True, height=270)
-        with lower_right:
-            st.subheader("Recent events")
-            recent_events = df[["step_id", "twin_id", "route", "exec_ms", "latency_breach"]].tail(12).copy() if not df.empty else pd.DataFrame(columns=["step_id", "twin_id", "route", "exec_ms", "latency_breach"])
-            st.dataframe(recent_events, use_container_width=True, hide_index=True, height=270)
-
-    with focus_slot.container():
-        st.subheader("Focused twin")
         focus_twin = ss.focus_twin if ss.focus_twin in ss.core.registry else next(iter(ss.core.registry.keys()))
         twin_state = ss.core.registry[focus_twin]
         twin_df = df[df["twin_id"] == focus_twin].copy() if not df.empty else pd.DataFrame()
         if not twin_df.empty:
             twin_df["step"] = range(1, len(twin_df) + 1)
-            twin_live_df = twin_df.tail(int(min(ss.live_window, max(len(twin_df), 1))))
-        else:
-            twin_live_df = pd.DataFrame({"step": [], "objective_value": [], "exec_ms": []})
-        t_left, t_right = st.columns(2)
-        with t_left:
-            st.line_chart(twin_live_df.set_index("step")[["objective_value"]] if not twin_live_df.empty else pd.DataFrame(columns=["objective_value"]), height=220)
-            st.line_chart(twin_live_df.set_index("step")[["exec_ms"]] if not twin_live_df.empty else pd.DataFrame(columns=["exec_ms"]), height=220)
-        with t_right:
-            twin_state_df = pd.DataFrame(
-                [
-                    {"field": "twin_id", "value": focus_twin},
-                    {"field": "health", "value": round(float(twin_state.health), 4)},
-                    {"field": "x1", "value": round(float(twin_state.x1), 4)},
-                    {"field": "x2", "value": round(float(twin_state.x2), 4)},
-                    {"field": "x3", "value": round(float(twin_state.x3), 4)},
-                    {"field": "last_mode", "value": twin_state.last_action.get("mode", "-")},
-                    {"field": "last_damp", "value": round(float(twin_state.last_action.get("damp", 0.0)), 4)},
-                    {"field": "timestamp", "value": twin_state.ts},
-                ]
+
+        twin_snapshot = get_twin_snapshot(ss.core)
+        ops_left, ops_right = st.columns([1.45, 1], gap="large")
+        with ops_left:
+            st.markdown(panel_intro("Focused twin", f"Activity timeline · {focus_twin}", "Objective and latency evolution for the selected twin across the live window."), unsafe_allow_html=True)
+            st.plotly_chart(
+                build_twin_focus_figure(twin_df, ss.accent_palette, int(ss.live_window)),
+                use_container_width=True,
+                config={"displayModeBar": False, "responsive": True},
             )
-            st.dataframe(twin_state_df, use_container_width=True, hide_index=True, height=220)
-            if not twin_df.empty:
-                st.bar_chart(twin_df["route"].value_counts())
+        with ops_right:
+            st.markdown(panel_intro("Fleet health", "Operational health map", "Fast comparison of current health scores across all twins in the registry."), unsafe_allow_html=True)
+            st.plotly_chart(
+                build_health_figure(twin_snapshot, ss.accent_palette),
+                use_container_width=True,
+                config={"displayModeBar": False, "responsive": True},
+            )
+
+    with focus_slot.container():
+        twin_state_df = pd.DataFrame(
+            [
+                {"field": "twin_id", "value": focus_twin},
+                {"field": "health", "value": round(float(twin_state.health), 4)},
+                {"field": "x1", "value": round(float(twin_state.x1), 4)},
+                {"field": "x2", "value": round(float(twin_state.x2), 4)},
+                {"field": "x3", "value": round(float(twin_state.x3), 4)},
+                {"field": "last_mode", "value": twin_state.last_action.get("mode", "-")},
+                {"field": "last_damp", "value": round(float(twin_state.last_action.get("damp", 0.0)), 4)},
+                {"field": "timestamp", "value": twin_state.ts},
+            ]
+        )
+        recent_events = df[["step_id", "twin_id", "route", "exec_ms", "latency_breach"]].tail(12).copy() if not df.empty else pd.DataFrame(columns=["step_id", "twin_id", "route", "exec_ms", "latency_breach"])
+
+        bottom_left, bottom_right = st.columns([1.1, 1], gap="large")
+        with bottom_left:
+            st.markdown(panel_intro("State vector", "Focused twin state", "Current values for the selected twin, including the last applied control decision."), unsafe_allow_html=True)
+            st.dataframe(twin_state_df, use_container_width=True, hide_index=True, height=300)
+        with bottom_right:
+            st.markdown(panel_intro("Operations log", "Recent events", "Most recent routing outcomes, latency observations and breach flags in the live run."), unsafe_allow_html=True)
+            st.dataframe(recent_events, use_container_width=True, hide_index=True, height=300)
 
 
 
