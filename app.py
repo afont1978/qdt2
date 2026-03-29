@@ -912,7 +912,6 @@ kpi_slot = st.empty()
 notice_slot = st.empty()
 charts_slot = st.empty()
 focus_slot = st.empty()
-audit_slot = st.empty()
 
 
 def render_live_area() -> None:
@@ -1064,23 +1063,6 @@ def render_live_area() -> None:
             if not twin_df.empty:
                 st.bar_chart(twin_df["route"].value_counts())
 
-    with audit_slot.container():
-        with st.expander("Audit and exports", expanded=False):
-            if df.empty:
-                st.caption("No audit data yet.")
-            else:
-                audit_cols = ["step_id", "ts", "twin_id", "route", "exec_ms", "qpu_queue_ms", "noise_proxy", "cost_eur", "latency_breach"]
-                st.dataframe(df[audit_cols].tail(50), use_container_width=True, height=260, hide_index=True)
-                export_left, export_right, export_third = st.columns(3)
-                with export_left:
-                    csv_bytes = df.to_csv(index=False).encode("utf-8")
-                    st.download_button("Download CSV", data=csv_bytes, file_name="hybrid_control_room_run.csv", mime="text/csv", use_container_width=True, key="dl_csv")
-                with export_right:
-                    json_bytes = df.to_json(orient="records", indent=2).encode("utf-8")
-                    st.download_button("Download JSON", data=json_bytes, file_name="hybrid_control_room_run.json", mime="application/json", use_container_width=True, key="dl_json")
-                with export_third:
-                    report = make_markdown_report(df, summary, str(ss.correlation_id), int(ss.twins), str(ss.policy)).encode("utf-8")
-                    st.download_button("Download Markdown summary", data=report, file_name="hybrid_control_room_summary.md", mime="text/markdown", use_container_width=True, key="dl_md")
 
 
 _fragment = getattr(st, "fragment", None)
@@ -1098,3 +1080,23 @@ else:
         render_live_area()
 
 live_dashboard_fragment()
+
+st.subheader("Audit and exports")
+current_df = pd.DataFrame(ss.records)
+current_summary = compute_summary(current_df)
+with st.expander("Audit log and downloads", expanded=False):
+    if current_df.empty:
+        st.caption("No audit data yet.")
+    else:
+        audit_cols = ["step_id", "ts", "twin_id", "route", "exec_ms", "qpu_queue_ms", "noise_proxy", "cost_eur", "latency_breach"]
+        st.dataframe(current_df[audit_cols].tail(50), use_container_width=True, height=260, hide_index=True)
+        export_left, export_right, export_third = st.columns(3)
+        with export_left:
+            csv_bytes = current_df.to_csv(index=False).encode("utf-8")
+            st.download_button("Download CSV", data=csv_bytes, file_name="hybrid_control_room_run.csv", mime="text/csv", use_container_width=True, key="dl_csv")
+        with export_right:
+            json_bytes = current_df.to_json(orient="records", indent=2).encode("utf-8")
+            st.download_button("Download JSON", data=json_bytes, file_name="hybrid_control_room_run.json", mime="application/json", use_container_width=True, key="dl_json")
+        with export_third:
+            report = make_markdown_report(current_df, current_summary, str(ss.correlation_id), int(ss.twins), str(ss.policy)).encode("utf-8")
+            st.download_button("Download Markdown summary", data=report, file_name="hybrid_control_room_summary.md", mime="text/markdown", use_container_width=True, key="dl_md")
