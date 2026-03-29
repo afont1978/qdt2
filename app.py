@@ -1203,6 +1203,7 @@ with overview_tab:
                     build_system_performance_figure(df, ss.accent_palette, int(ss.live_window)),
                     use_container_width=True,
                     config={"displayModeBar": False, "responsive": True},
+                    key="overview_system_performance_chart",
                 )
             with perf_right:
                 st.markdown(panel_intro("Routing", "Decision mix", "Current composition of classical, quantum and governed fallback routes."), unsafe_allow_html=True)
@@ -1210,12 +1211,14 @@ with overview_tab:
                     build_donut_figure(route_counts, ss.accent_palette, "Routes"),
                     use_container_width=True,
                     config={"displayModeBar": False, "responsive": True},
+                    key="overview_routes_donut_chart",
                 )
                 st.markdown(panel_intro("Governance", "Fallback reasons", "Highest-frequency causes behind governed fallback decisions."), unsafe_allow_html=True)
                 st.plotly_chart(
                     build_reason_bar_figure(fallback_counts, ss.accent_palette),
                     use_container_width=True,
                     config={"displayModeBar": False, "responsive": True},
+                    key="overview_fallback_reasons_chart",
                 )
 
             focus_twin = ss.focus_twin if ss.focus_twin in ss.core.registry else next(iter(ss.core.registry.keys()))
@@ -1232,6 +1235,7 @@ with overview_tab:
                     build_twin_focus_figure(twin_df, ss.accent_palette, int(ss.live_window)),
                     use_container_width=True,
                     config={"displayModeBar": False, "responsive": True},
+                    key="overview_focused_twin_chart",
                 )
             with ops_right:
                 st.markdown(panel_intro("Fleet health", "Operational health map", "Fast comparison of current health scores across all twins in the registry."), unsafe_allow_html=True)
@@ -1239,6 +1243,7 @@ with overview_tab:
                     build_health_figure(twin_snapshot, ss.accent_palette),
                     use_container_width=True,
                     config={"displayModeBar": False, "responsive": True},
+                    key="overview_fleet_health_chart",
                 )
 
         with focus_slot.container():
@@ -1300,6 +1305,7 @@ with twin_tab:
                 build_twin_focus_figure(twin_df, ss.accent_palette, int(ss.live_window)),
                 use_container_width=True,
                 config={"displayModeBar": False, "responsive": True},
+                key="twin_tab_focus_chart",
             )
         with top_right:
             route_counts = twin_df["route"].value_counts() if not twin_df.empty else pd.Series(dtype=int)
@@ -1307,6 +1313,7 @@ with twin_tab:
                 build_donut_figure(route_counts, ss.accent_palette, f"Routes · {selected_twin}"),
                 use_container_width=True,
                 config={"displayModeBar": False, "responsive": True},
+                key="twin_tab_routes_donut_chart",
             )
 
         state_df = pd.DataFrame(
