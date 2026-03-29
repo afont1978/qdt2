@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.q_infratwin.engine import (
@@ -371,6 +372,30 @@ def build_theme_css(style_name: str, palette_name: str) -> str:
         font-size: 0.92rem;
     }}
 
+    .chart-shell {
+        padding: 0.9rem 0.95rem 0.55rem 0.95rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(95, 117, 162, 0.24);
+        background: linear-gradient(180deg, rgba(14, 21, 34, 0.97), rgba(8, 13, 23, 0.97));
+        box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+        margin-bottom: 0.75rem;
+    }
+
+    .chart-title {
+        font-family: {style['heading_font']};
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #f7fbff !important;
+        margin-bottom: 0.15rem;
+    }
+
+    .chart-copy {
+        font-size: 0.84rem;
+        color: #c7d6ef !important;
+        margin-bottom: 0.5rem;
+    }
+
     .stTabs [data-baseweb="tab-list"] {{
         gap: 0.4rem;
     }}
@@ -447,10 +472,29 @@ def build_theme_css(style_name: str, palette_name: str) -> str:
     section[data-testid="stSidebar"] [data-baseweb="select"] > div,
     section[data-testid="stSidebar"] [data-baseweb="input"] > div,
     section[data-testid="stSidebar"] input,
-    section[data-testid="stSidebar"] textarea {{
-        background: rgba(255,255,255,0.88) !important;
+    section[data-testid="stSidebar"] textarea,
+    section[data-testid="stSidebar"] [data-baseweb="base-input"] > div {{
+        background: rgba(255,255,255,0.92) !important;
         color: #0f1724 !important;
         border-color: rgba(15, 23, 36, 0.15) !important;
+    }}
+
+    section[data-testid="stSidebar"] [data-baseweb="select"] *,
+    section[data-testid="stSidebar"] [data-baseweb="input"] *,
+    section[data-testid="stSidebar"] [data-baseweb="base-input"] *,
+    section[data-testid="stSidebar"] [role="combobox"] *,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] * {{
+        color: #111827 !important;
+        fill: #111827 !important;
+    }}
+
+    div[data-baseweb="popover"] *,
+    div[data-baseweb="menu"] *,
+    ul[role="listbox"] *,
+    li[role="option"] *,
+    [role="option"] * {{
+        color: #111827 !important;
+        fill: #111827 !important;
     }}
 
     section[data-testid="stSidebar"] button {{
@@ -459,8 +503,13 @@ def build_theme_css(style_name: str, palette_name: str) -> str:
         box-shadow: none !important;
     }}
 
-    .stSlider label, .stSelectbox label, .stNumberInput label, .stCheckbox label {{
-        color: #edf4ff !important;
+    section[data-testid="stSidebar"] .stSlider label,
+    section[data-testid="stSidebar"] .stSelectbox label,
+    section[data-testid="stSidebar"] .stNumberInput label,
+    section[data-testid="stSidebar"] .stCheckbox label,
+    section[data-testid="stSidebar"] .stRadio label,
+    section[data-testid="stSidebar"] .stMultiSelect label {{
+        color: #111827 !important;
     }}
 
     .stDataFrame, .stTable {{
@@ -794,6 +843,77 @@ def kpi_card(label: str, value: str, icon: str, trend_label: str, css_class: str
     """
 
 
+def chart_card_header(title: str, copy: str = "") -> str:
+    return f"<div class='chart-shell'><div class='chart-title'>{title}</div><div class='chart-copy'>{copy}</div></div>"
+
+
+def _palette_colors() -> dict[str, str]:
+    return ACCENT_PALETTES.get(ss.accent_palette, ACCENT_PALETTES["Cobalt Mint"])
+
+
+def make_line_figure(df: pd.DataFrame, x: str, y: str, title: str, yaxis_title: str, color: str, fill: bool = False) -> go.Figure:
+    fig = go.Figure()
+    if not df.empty and y in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df[x],
+                y=df[y],
+                mode="lines+markers",
+                line={"color": color, "width": 3, "shape": "spline", "smoothing": 0.55},
+                marker={"size": 5, "color": color, "line": {"width": 0}},
+                fill="tozeroy" if fill else None,
+                fillcolor="rgba(105, 231, 213, 0.10)" if fill else None,
+                hovertemplate=f"Step %{{x}}<br>{title}: %{{y:.3f}}<extra></extra>",
+            )
+        )
+    fig.update_layout(
+        height=290,
+        margin={"l": 14, "r": 14, "t": 10, "b": 10},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(255,255,255,0.02)",
+        xaxis={
+            "title": "Step",
+            "showgrid": True,
+            "gridcolor": "rgba(170,190,220,0.10)",
+            "zeroline": False,
+            "tickfont": {"color": "#cfe1fb"},
+            "titlefont": {"color": "#9fb4d8"},
+        },
+        yaxis={
+            "title": yaxis_title,
+            "showgrid": True,
+            "gridcolor": "rgba(170,190,220,0.10)",
+            "zeroline": False,
+            "tickfont": {"color": "#cfe1fb"},
+            "titlefont": {"color": "#9fb4d8"},
+        },
+        showlegend=False,
+        font={"color": "#eaf2ff"},
+        hoverlabel={"bgcolor": "#0b1220", "font": {"color": "#f8fbff"}},
+    )
+    return fig
+
+
+def make_bar_figure(series: pd.Series, color: str, horizontal: bool = False, height: int = 290) -> go.Figure:
+    fig = go.Figure()
+    if series is not None and len(series) > 0:
+        if horizontal:
+            fig.add_trace(go.Bar(x=series.values, y=series.index.tolist(), orientation="h", marker_color=color, hovertemplate="%{y}: %{x}<extra></extra>"))
+        else:
+            fig.add_trace(go.Bar(x=series.index.tolist(), y=series.values, marker_color=color, hovertemplate="%{x}: %{y}<extra></extra>"))
+    fig.update_layout(
+        height=height,
+        margin={"l": 14, "r": 14, "t": 10, "b": 10},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(255,255,255,0.02)",
+        xaxis={"showgrid": True, "gridcolor": "rgba(170,190,220,0.10)", "zeroline": False, "tickfont": {"color": "#cfe1fb"}},
+        yaxis={"showgrid": False, "zeroline": False, "tickfont": {"color": "#cfe1fb"}},
+        showlegend=False,
+        font={"color": "#eaf2ff"},
+    )
+    return fig
+
+
 ss = st.session_state
 ss.setdefault("core", None)
 ss.setdefault("orch", None)
@@ -1001,36 +1121,40 @@ def render_live_area() -> None:
 
     with charts_slot.container():
         st.subheader("Live evolution")
-        st.markdown("<div class='info-panel'><div class='info-title'>Streaming view</div><div class='info-body'>These charts are updated inside stable placeholders, so only the live data region redraws while the rest of the page stays fixed.</div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='info-panel'><div class='info-title'>Streaming view</div><div class='info-body'>The chart area below is laid out as a monitoring grid with professional line and bar visuals, while the rest of the interface remains stable during live execution.</div></div>", unsafe_allow_html=True)
         plot_df = df.copy()
         if plot_df.empty:
             plot_df = pd.DataFrame({"step": [], "objective_value": [], "exec_ms": []})
         else:
             plot_df["step"] = range(1, len(plot_df) + 1)
         live_df = plot_df.tail(int(ss.live_window)).copy() if not plot_df.empty else plot_df
+        palette = _palette_colors()
 
-        live_left, live_right = st.columns([2, 1])
-        with live_left:
-            st.line_chart(live_df.set_index("step")[["objective_value"]] if not live_df.empty else pd.DataFrame(columns=["objective_value"]), height=260)
-            st.line_chart(live_df.set_index("step")[["exec_ms"]] if not live_df.empty else pd.DataFrame(columns=["exec_ms"]), height=260)
-        with live_right:
-            st.subheader("Routing distribution")
-            st.bar_chart(route_counts if not route_counts.empty else pd.Series(dtype=int))
-            st.subheader("Fallback reasons")
-            if not fallback_counts.empty:
-                st.bar_chart(fallback_counts.head(10))
-            else:
-                st.caption("No fallback reasons recorded.")
+        top_left, top_right = st.columns(2)
+        with top_left:
+            st.markdown(chart_card_header("Objective trajectory", "Hybrid objective trend across the current live window."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(live_df, "step", "objective_value", "Objective", "Objective value", palette["primary"], fill=True), use_container_width=True, config={"displayModeBar": False}, key=f"obj_plot_{ss.step_id}")
+        with top_right:
+            st.markdown(chart_card_header("Latency profile", "Execution latency per step with a smoother live view."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(live_df, "step", "exec_ms", "Latency", "Latency (ms)", palette["secondary"], fill=False), use_container_width=True, config={"displayModeBar": False}, key=f"lat_plot_{ss.step_id}")
 
-        lower_left, lower_right = st.columns([1.2, 1])
+        mid_left, mid_right = st.columns([1.05, 0.95])
+        with mid_left:
+            st.markdown(chart_card_header("Routing distribution", "Current share of classical, fallback and quantum decisions."), unsafe_allow_html=True)
+            st.plotly_chart(make_bar_figure(route_counts, palette["primary"], horizontal=False, height=260), use_container_width=True, config={"displayModeBar": False}, key=f"route_plot_{ss.step_id}")
+        with mid_right:
+            st.markdown(chart_card_header("Fallback reasons", "Most frequent governance triggers observed so far."), unsafe_allow_html=True)
+            st.plotly_chart(make_bar_figure(fallback_counts.head(8), palette["secondary"], horizontal=True, height=260), use_container_width=True, config={"displayModeBar": False}, key=f"fallback_plot_{ss.step_id}")
+
+        lower_left, lower_right = st.columns([1.15, 0.85])
         with lower_left:
-            st.subheader("Operational twin snapshot")
+            st.markdown(chart_card_header("Operational twin snapshot", "Instantaneous state of all active twins."), unsafe_allow_html=True)
             twin_snapshot = get_twin_snapshot(ss.core)
-            st.dataframe(twin_snapshot, use_container_width=True, hide_index=True, height=270)
+            st.dataframe(twin_snapshot, use_container_width=True, hide_index=True, height=255)
         with lower_right:
-            st.subheader("Recent events")
-            recent_events = df[["step_id", "twin_id", "route", "exec_ms", "latency_breach"]].tail(12).copy() if not df.empty else pd.DataFrame(columns=["step_id", "twin_id", "route", "exec_ms", "latency_breach"])
-            st.dataframe(recent_events, use_container_width=True, hide_index=True, height=270)
+            st.markdown(chart_card_header("Recent events", "Latest routing decisions and SLA outcomes."), unsafe_allow_html=True)
+            recent_events = df[["step_id", "twin_id", "route", "exec_ms", "latency_breach"]].tail(10).copy() if not df.empty else pd.DataFrame(columns=["step_id", "twin_id", "route", "exec_ms", "latency_breach"])
+            st.dataframe(recent_events, use_container_width=True, hide_index=True, height=255)
 
     with focus_slot.container():
         st.subheader("Focused twin")
@@ -1042,11 +1166,12 @@ def render_live_area() -> None:
             twin_live_df = twin_df.tail(int(min(ss.live_window, max(len(twin_df), 1))))
         else:
             twin_live_df = pd.DataFrame({"step": [], "objective_value": [], "exec_ms": []})
-        t_left, t_right = st.columns(2)
-        with t_left:
-            st.line_chart(twin_live_df.set_index("step")[["objective_value"]] if not twin_live_df.empty else pd.DataFrame(columns=["objective_value"]), height=220)
-            st.line_chart(twin_live_df.set_index("step")[["exec_ms"]] if not twin_live_df.empty else pd.DataFrame(columns=["exec_ms"]), height=220)
-        with t_right:
+
+        upper_left, upper_right = st.columns([1.3, 0.7])
+        with upper_left:
+            st.markdown(chart_card_header(f"{focus_twin} · objective", "Per-twin objective evolution within the selected live window."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(twin_live_df, "step", "objective_value", "Twin objective", "Objective value", palette["primary"], fill=True), use_container_width=True, config={"displayModeBar": False}, key=f"twin_obj_{focus_twin}_{ss.step_id}")
+        with upper_right:
             twin_state_df = pd.DataFrame(
                 [
                     {"field": "twin_id", "value": focus_twin},
@@ -1059,9 +1184,16 @@ def render_live_area() -> None:
                     {"field": "timestamp", "value": twin_state.ts},
                 ]
             )
-            st.dataframe(twin_state_df, use_container_width=True, hide_index=True, height=220)
-            if not twin_df.empty:
-                st.bar_chart(twin_df["route"].value_counts())
+            st.markdown(chart_card_header("Twin state", "Live state vector and latest applied action."), unsafe_allow_html=True)
+            st.dataframe(twin_state_df, use_container_width=True, hide_index=True, height=335)
+
+        lower_focus_left, lower_focus_right = st.columns(2)
+        with lower_focus_left:
+            st.markdown(chart_card_header(f"{focus_twin} · latency", "Execution latency history for the selected twin."), unsafe_allow_html=True)
+            st.plotly_chart(make_line_figure(twin_live_df, "step", "exec_ms", "Twin latency", "Latency (ms)", palette["secondary"], fill=False), use_container_width=True, config={"displayModeBar": False}, key=f"twin_lat_{focus_twin}_{ss.step_id}")
+        with lower_focus_right:
+            st.markdown(chart_card_header(f"{focus_twin} · routing mix", "Distribution of routes for the selected twin."), unsafe_allow_html=True)
+            st.plotly_chart(make_bar_figure(twin_df["route"].value_counts() if not twin_df.empty else pd.Series(dtype=int), palette["primary"], horizontal=False, height=290), use_container_width=True, config={"displayModeBar": False}, key=f"twin_route_{focus_twin}_{ss.step_id}")
 
 
 
